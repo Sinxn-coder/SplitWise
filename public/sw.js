@@ -11,7 +11,8 @@ const APP_SHELL = [
   'icon-light-32x32.png',
   'icon-dark-32x32.png',
   'favicon.ico',
-  'nexlyte.png'
+  'nexlytelight.png',
+  'nexlytedark.png'
 ];
 
 // ─── INSTALL ─────────────────────────────────────────────────────────────────

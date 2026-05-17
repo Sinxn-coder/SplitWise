@@ -425,9 +425,14 @@ export function ExpenseSplitter() {
         >
           <span className="text-[10px] text-muted-foreground tracking-wider uppercase font-semibold opacity-75 group-hover:text-foreground transition-colors">Powered by</span>
           <img 
-            src="nexlyte.png" 
-            alt="Nexlyte" 
-            className="h-4.5 w-auto object-contain dark:brightness-110 dark:contrast-125 group-hover:scale-105 transition-transform duration-200" 
+            src="nexlytelight.png" 
+            alt="Nexlyte Light" 
+            className="h-4.5 w-auto object-contain dark:hidden group-hover:scale-105 transition-transform duration-200" 
+          />
+          <img 
+            src="nexlytedark.png" 
+            alt="Nexlyte Dark" 
+            className="h-4.5 w-auto object-contain hidden dark:block group-hover:scale-105 transition-transform duration-200" 
           />
           <span className="text-xs font-bold tracking-tight text-foreground/80 group-hover:text-emerald-600 transition-colors duration-200">Nexlyte</span>
         </a>
