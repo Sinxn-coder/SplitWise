@@ -17,17 +17,17 @@ export const metadata: Metadata = {
   title: 'SplitWise - Split Expenses with Friends',
   description: 'A modern expense splitting app to split bills between friends easily',
   generator: 'SplitWise PWA',
-  manifest: '/manifest.json',
+  manifest: 'manifest.json',
   // iOS requires apple-touch-icon explicitly here - without this iPhone shows a generic letter icon
   icons: {
     icon: [
-      { url: '/icon-512x512.png', sizes: '512x512', type: 'image/png' },
-      { url: '/icon-dark-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: 'icon-512x512.png', sizes: '512x512', type: 'image/png' },
+      { url: 'icon-dark-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
-    shortcut: '/icon-512x512.png',
+    shortcut: 'icon-512x512.png',
     // This is the key one for iPhone home screen icon
     apple: [
-      { url: '/apple-icon.png', sizes: '512x512', type: 'image/png' },
+      { url: 'apple-icon.png', sizes: '512x512', type: 'image/png' },
     ],
   },
   // iPhone PWA meta tags
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'SplitWise',
-    startupImage: '/apple-icon.png',
+    startupImage: 'apple-icon.png',
   },
 }
 
@@ -58,10 +58,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-background" suppressHydrationWarning>
       <head>
-        {/* Explicit apple-touch-icon tags – Next.js metadata alone isn't enough for iOS */}
-        <link rel="apple-touch-icon" href="/apple-icon.png" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/apple-icon.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon.png" />
+        {/* Explicit apple-touch-icon and manifest tags for bulletproof PWA installations */}
+        <link rel="apple-touch-icon" href="apple-icon.png" />
+        <link rel="apple-touch-icon" sizes="512x512" href="apple-icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="apple-icon.png" />
+        <link rel="manifest" href="manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="SplitWise" />
