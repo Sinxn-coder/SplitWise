@@ -41,6 +41,7 @@ export function ViewportFix() {
 
     // Track whether a keyboard-aware input is currently focused
     let inputFocused = false
+    let keyboardWasOpen = false
 
     // ── 1. Lock scale on focus (iOS + Android) ────────────────────────────────
     const onFocusIn = (e: FocusEvent) => {
@@ -62,16 +63,16 @@ export function ViewportFix() {
       setTimeout(() => {
         if (!inputFocused) {
           viewportMeta.setAttribute("content", originalContent)
-          // Snap back to top — prevents iOS staying scrolled into keyboard area
-          window.scrollTo({ top: 0, behavior: "smooth" })
+          // Snap back to top ONLY if the keyboard was actually open
+          if (keyboardWasOpen) {
+            window.scrollTo({ top: 0, behavior: "smooth" })
+            keyboardWasOpen = false
+          }
         }
       }, 200)
     }
 
     // ── 2b. VisualViewport resize (Android Chrome + iOS 13+) ─────────────────
-    // Android Chrome doesn't reliably fire focusout when keyboard closes via
-    // the system back button or swipe. VisualViewport.resize is the correct
-    // cross-platform signal that the keyboard has appeared or disappeared.
     let lastVVHeight = window.visualViewport?.height ?? window.innerHeight
     
     const onVisualViewportResize = () => {
@@ -79,16 +80,27 @@ export function ViewportFix() {
       if (!vv) return
 
       const currentHeight = vv.height
-      const keyboardJustClosed = currentHeight > lastVVHeight
+      
+      // If the viewport height shrinks significantly (e.g. > 120px), the keyboard is active
+      const heightDifference = window.innerHeight - currentHeight
+      if (heightDifference > 120) {
+        keyboardWasOpen = true
+      }
 
+      const keyboardJustClosed = currentHeight > lastVVHeight
       lastVVHeight = currentHeight
 
-      if (keyboardJustClosed && !inputFocused) {
+      if (keyboardJustClosed) {
         // Keyboard closed (height grew back) and no input is focused —
-        // restore viewport and scroll to origin
+        // restore viewport and scroll to origin if keyboard was open
         setTimeout(() => {
-          viewportMeta.setAttribute("content", originalContent)
-          window.scrollTo({ top: 0, behavior: "smooth" })
+          if (!inputFocused) {
+            viewportMeta.setAttribute("content", originalContent)
+            if (keyboardWasOpen) {
+              window.scrollTo({ top: 0, behavior: "smooth" })
+              keyboardWasOpen = false
+            }
+          }
         }, 100)
       }
     }
@@ -100,6 +112,11 @@ export function ViewportFix() {
     const vv = window.visualViewport
     if (vv) {
       vv.addEventListener("resize", onVisualViewportResize)
+      // Check initial state
+      const initialDiff = window.innerHeight - vv.height
+      if (initialDiff > 120) {
+        keyboardWasOpen = true
+      }
     }
 
     return () => {
