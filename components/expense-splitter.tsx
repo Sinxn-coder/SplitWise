@@ -60,11 +60,11 @@ export function ExpenseSplitter() {
   // Register PWA service worker on mount & capture install prompt
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // Register service worker
+      // Register service worker with explicit scope for subdirectory hosting
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("sw.js").then(
-          (reg) => console.log("Service Worker registered with scope: ", reg.scope),
-          (err) => console.error("Service Worker registration failed: ", err)
+        navigator.serviceWorker.register("sw.js", { scope: "./" }).then(
+          (reg) => console.log("[SW] Registered, scope:", reg.scope),
+          (err) => console.error("[SW] Registration failed:", err)
         )
       }
 

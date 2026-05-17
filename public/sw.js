@@ -1,55 +1,71 @@
-// SplitWise Service Worker - App Shell + Runtime Caching for Full Offline Support
-const CACHE_NAME = 'splitwise-v4';
+// SplitWise Service Worker v6 — Full Offline Support (iOS + Android)
+// ─────────────────────────────────────────────────────────────────────────────
+// HOW THIS WORKS:
+//   1. On INSTALL:  pre-cache the root HTML page (the app shell)
+//   2. On FETCH:    Three strategies depending on request type:
+//      a) Navigation (HTML page) → Network-first, fallback to cached shell
+//      b) Static assets (/_next/static/) → Cache-first (immutable files with hashes)
+//      c) Everything else → Cache-first with network fallback
+//   3. All successful network responses are saved to cache automatically,
+//      so after ONE online visit the entire app works offline forever.
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Core app shell - these MUST be cached on install for offline to work
-const APP_SHELL = [
+const CACHE_NAME = 'splitwise-v6';
+
+// We only pre-cache the root HTML shell during install.
+// All JS/CSS bundles are cached at runtime on first visit (see fetch handler).
+const PRECACHE_URLS = [
   './',
-  './index.html',
   'manifest.json',
   'icon-512x512.png',
   'apple-icon.png',
-  'icon-light-32x32.png',
-  'icon-dark-32x32.png',
-  'favicon.ico',
   'nexlytelight.png',
-  'nexlytedark.png'
+  'nexlytedark.png',
+  'favicon.ico'
 ];
 
-// ─── INSTALL ─────────────────────────────────────────────────────────────────
-// Pre-cache the app shell. Use individual try/catch so one failing asset
-// doesn't block the whole install.
+// ─── INSTALL ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      const results = await Promise.allSettled(
-        APP_SHELL.map((url) => cache.add(url).catch((e) => {
-          console.warn('SW: failed to pre-cache', url, e);
-        }))
-      );
-      console.log('SW: install pre-cache done', results.length, 'items');
-    })
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      // Pre-cache individually so one 404 doesn't break the whole install
+      for (const url of PRECACHE_URLS) {
+        try {
+          await cache.add(new Request(url, { cache: 'reload' }));
+        } catch (e) {
+          console.warn('[SW] Pre-cache failed for:', url, e.message);
+        }
+      }
+      console.log('[SW] Installed and pre-cached shell');
+    })()
   );
-  // Activate immediately – don't wait for old tabs to close
+  // Activate the new SW immediately, don't wait for old tabs to close
   self.skipWaiting();
 });
 
-// ─── ACTIVATE ────────────────────────────────────────────────────────────────
-// Delete every cache that doesn't match our current CACHE_NAME
+// ─── ACTIVATE ─────────────────────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(
-        names
-          .filter((n) => n !== CACHE_NAME)
-          .map((n) => caches.delete(n))
-      )
-    )
+    (async () => {
+      // Delete all old cache versions
+      const cacheNames = await caches.keys();
+      await Promise.all(
+        cacheNames
+          .filter((name) => name !== CACHE_NAME)
+          .map((name) => {
+            console.log('[SW] Deleting old cache:', name);
+            return caches.delete(name);
+          })
+      );
+      // Take control of all open clients immediately
+      await self.clients.claim();
+      console.log('[SW] Activated and claimed clients');
+    })()
   );
-  // Take control of all open clients immediately
-  self.clients.claim();
 });
 
-// ─── FETCH ───────────────────────────────────────────────────────────────────
+// ─── FETCH ────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -57,57 +73,99 @@ self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (request.method !== 'GET') return;
 
-  // Skip non-http(s) requests (ws://, chrome-extension://, etc.)
+  // Only handle http/https (skip ws://, chrome-extension://, etc.)
   if (!url.protocol.startsWith('http')) return;
 
-  // Skip Next.js HMR websocket / dev-only paths
+  // Skip HMR websocket (dev only – won't appear in production)
   if (url.pathname.includes('webpack-hmr')) return;
 
-  // ── Strategy: Cache-First with Network Fallback ──────────────────────────
-  // 1. Serve from cache instantly if available (works offline)
-  // 2. In parallel, refresh the cache entry from network when online
-  // 3. If both cache AND network fail → return the cached root HTML
-  //    so the user always sees the app, not a browser error page
-  event.respondWith(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      const cached = await cache.match(request);
+  // ── Strategy A: Navigation requests (loading the page) ───────────────────
+  // Network-first: try to get a fresh page, but if offline serve the cached shell.
+  // This is what happens when a user opens the PWA — if offline we MUST return
+  // the cached HTML or the browser shows its own "no internet" page.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        try {
+          // Try network first
+          const networkResponse = await fetch(request);
+          // Cache the fresh HTML for next time
+          cache.put(request, networkResponse.clone());
+          return networkResponse;
+        } catch (_) {
+          // Offline — serve the cached shell
+          console.log('[SW] Offline navigation — serving cached shell');
+          const cached =
+            (await cache.match(request)) ||
+            (await cache.match('./')) ||
+            (await cache.match(new URL('./', self.location.href).href));
+          if (cached) return cached;
+          // Absolute last resort
+          return new Response(
+            `<!DOCTYPE html><html><head><meta charset="utf-8">
+             <meta name="viewport" content="width=device-width,initial-scale=1">
+             <title>SplitWise — Offline</title>
+             <style>body{font-family:system-ui,sans-serif;display:flex;flex-direction:column;
+             align-items:center;justify-content:center;height:100vh;margin:0;background:#f0fdf4;color:#065f46}
+             h1{font-size:1.5rem}p{opacity:.7;font-size:.9rem}</style></head>
+             <body><h1>📶 You're offline</h1>
+             <p>Open SplitWise once online to enable offline mode.</p></body></html>`,
+            { status: 200, headers: { 'Content-Type': 'text/html' } }
+          );
+        }
+      })()
+    );
+    return;
+  }
 
-      const networkFetch = fetch(request)
-        .then((networkResponse) => {
-          // Only cache valid same-origin or CORS responses
-          if (
-            networkResponse &&
-            networkResponse.status === 200 &&
-            (networkResponse.type === 'basic' || networkResponse.type === 'cors')
-          ) {
+  // ── Strategy B: Next.js static assets (JS bundles, CSS, fonts) ───────────
+  // Cache-first: these files have content hashes in their names so they are
+  // safe to serve from cache forever. Caching them is ESSENTIAL for offline.
+  if (url.pathname.includes('/_next/static/') || url.pathname.includes('/_next/media/')) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        // Not cached yet — fetch and store
+        try {
+          const networkResponse = await fetch(request);
+          if (networkResponse.ok) {
             cache.put(request, networkResponse.clone());
           }
           return networkResponse;
-        })
-        .catch(() => null); // Network is offline – that's fine
+        } catch (_) {
+          return new Response('', { status: 408, statusText: 'Offline' });
+        }
+      })()
+    );
+    return;
+  }
 
-      // Return cached immediately; network refresh happens in background
+  // ── Strategy C: Everything else (images, fonts, API calls, etc.) ─────────
+  // Cache-first with network fallback and background refresh
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(request);
       if (cached) {
-        // Kick off background refresh but don't await it
-        networkFetch;
+        // Serve from cache and refresh in background
+        fetch(request)
+          .then((res) => { if (res.ok) cache.put(request, res); })
+          .catch(() => {});
         return cached;
       }
-
-      // Nothing in cache yet – wait for network
-      const networkResponse = await networkFetch;
-      if (networkResponse) return networkResponse;
-
-      // Absolute last resort: return the cached root page
-      // This prevents iPhone from showing the Safari offline screen
-      const fallback = await cache.match('./') ||
-                       await cache.match('./index.html');
-      if (fallback) return fallback;
-
-      // Return a minimal offline response
-      return new Response(
-        '<html><body style="font-family:sans-serif;text-align:center;padding:60px"><h2>You are offline</h2><p>Please reconnect and reload.</p></body></html>',
-        { status: 503, headers: { 'Content-Type': 'text/html' } }
-      );
-    })
+      // Not in cache — try network
+      try {
+        const networkResponse = await fetch(request);
+        if (networkResponse.ok) {
+          cache.put(request, networkResponse.clone());
+        }
+        return networkResponse;
+      } catch (_) {
+        return new Response('', { status: 408, statusText: 'Offline' });
+      }
+    })()
   );
 });
