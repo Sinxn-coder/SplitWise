@@ -54,18 +54,27 @@ export function AssignProductsStep({
 
   const hasAnyAssignments = products.some((p) => p.assignedTo.length > 0)
 
-  // Generate options in increments of 0.5 based on product quantity
-  const generateDropdownOptions = (quantity: number) => {
+  // Generate options in increments of 0.5 based on remaining available quantity
+  const generateDropdownOptions = (quantity: number, alreadyAssignedToOthers: number, currentVal: number) => {
     const options: number[] = [0]
-    const maxVal = Math.max(quantity, 1)
+    const maxAvailable = quantity - alreadyAssignedToOthers
+    const maxVal = Math.max(maxAvailable, 0)
     for (let i = 0.5; i <= maxVal; i += 0.5) {
       options.push(i)
     }
-    // If the quantity is not a multiple of 0.5, add it as well
-    if (!options.includes(quantity)) {
-      options.push(quantity)
+    if (!options.includes(currentVal)) {
+      options.push(currentVal)
     }
-    return options.sort((a, b) => a - b)
+    if (maxVal > 0 && !options.includes(maxVal)) {
+      options.push(maxVal)
+    }
+    return Array.from(new Set(options)).sort((a, b) => a - b)
+  }
+
+  const isCustomSplitInvalid = (product: Product) => {
+    if (!product.splitByPercentage) return false
+    const totalShares = getTotalShares(product)
+    return Math.abs(totalShares - product.quantity) > 0.01
   }
 
   return (
@@ -154,17 +163,57 @@ export function AssignProductsStep({
             {/* Custom Count Split UI */}
             {product.splitByPercentage && product.assignedTo.length > 0 && (
               <div className="pt-3 border-t border-border/50 space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                  <span>Custom count split (select how many items consumed)</span>
-                  <span className="text-primary font-medium">
-                    Total Selected Count: {getTotalShares(product).toFixed(1)} / {product.quantity}
-                  </span>
+                <div className="flex flex-col gap-2 p-3 rounded-xl border mb-3 bg-card">
+                  <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+                    <span>Custom Count Split Details</span>
+                    <span className="flex items-center gap-1.5">
+                      Assigned: 
+                      <span className="text-foreground font-bold bg-muted px-2 py-0.5 rounded">
+                        {getTotalShares(product).toFixed(1)} / {product.quantity}
+                      </span>
+                    </span>
+                  </div>
+                  
+                  {/* Status Banner */}
+                  {(() => {
+                    const totalShares = getTotalShares(product)
+                    const diff = product.quantity - totalShares
+                    
+                    if (Math.abs(diff) <= 0.01) {
+                      return (
+                        <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-lg">
+                          <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                          Perfect split! All {product.quantity} items are fully assigned.
+                        </div>
+                      )
+                    } else if (diff > 0) {
+                      return (
+                        <div className="flex items-center gap-2 text-xs text-amber-600 font-semibold bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-lg">
+                          <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                          Under-assigned: {diff.toFixed(1)} items remaining to assign.
+                        </div>
+                      )
+                    } else {
+                      return (
+                        <div className="flex items-center gap-2 text-xs text-destructive font-semibold bg-destructive/10 border border-destructive/20 px-3 py-2 rounded-lg">
+                          <span className="flex h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                          Over-assigned: Assigned count exceeds total quantity by {Math.abs(diff).toFixed(1)} items!
+                        </div>
+                      )
+                    }
+                  })()}
                 </div>
+
                 {product.assignedTo.map((personId) => {
                   const person = people.find((p) => p.id === personId)
                   const assignment = product.percentages.find((p) => p.personId === personId)
                   const currentCount = assignment?.percentage ?? 1
-                  const dropdownOptions = generateDropdownOptions(product.quantity)
+                  
+                  const alreadyAssignedToOthers = product.percentages
+                    .filter((p) => product.assignedTo.includes(p.personId) && p.personId !== personId)
+                    .reduce((sum, p) => sum + p.percentage, 0)
+                  
+                  const dropdownOptions = generateDropdownOptions(product.quantity, alreadyAssignedToOthers, currentCount)
 
                   return (
                     <div key={personId} className="flex items-center gap-3">
@@ -214,13 +263,24 @@ export function AssignProductsStep({
           </div>
         ))}
 
-        <div className="pt-4 flex justify-between">
-          <Button variant="outline" onClick={onBack}>
+        <div className="pt-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between border-t border-border/50">
+          <Button variant="outline" onClick={onBack} className="w-full sm:w-auto">
             Back
           </Button>
-          <Button onClick={onContinue} disabled={!hasAnyAssignments} className="min-w-32">
-            Continue
-          </Button>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto justify-end">
+            {products.some(isCustomSplitInvalid) && (
+              <span className="text-xs font-semibold text-destructive animate-pulse text-center sm:text-right">
+                Please resolve over/under-assigned items to continue
+              </span>
+            )}
+            <Button
+              onClick={onContinue}
+              disabled={!hasAnyAssignments || products.some(isCustomSplitInvalid)}
+              className="w-full sm:w-auto min-w-32 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              Continue
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
