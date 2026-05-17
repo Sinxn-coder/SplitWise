@@ -62,7 +62,7 @@ export function ExpenseSplitter() {
     if (typeof window !== "undefined") {
       // Register service worker
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/sw.js").then(
+        navigator.serviceWorker.register("sw.js").then(
           (reg) => console.log("Service Worker registered with scope: ", reg.scope),
           (err) => console.error("Service Worker registration failed: ", err)
         )
@@ -425,7 +425,7 @@ export function ExpenseSplitter() {
         >
           <span className="text-[10px] text-muted-foreground tracking-wider uppercase font-semibold opacity-75 group-hover:text-foreground transition-colors">Powered by</span>
           <img 
-            src="/nexlyte.png" 
+            src="nexlyte.png" 
             alt="Nexlyte" 
             className="h-4.5 w-auto object-contain dark:brightness-110 dark:contrast-125 group-hover:scale-105 transition-transform duration-200" 
           />

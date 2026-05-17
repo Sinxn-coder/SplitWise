@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   title: 'SplitWise - Split Expenses with Friends',
   description: 'A modern expense splitting app to split bills between friends easily',
   generator: 'SplitWise PWA',
+  manifest: '/manifest.json',
   icons: {
     icon: '/icon-512x512.png',
     shortcut: '/icon-512x512.png',

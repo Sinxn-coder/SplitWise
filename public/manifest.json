@@ -2,20 +2,20 @@
   "name": "SplitWise - Bill Splitter",
   "short_name": "SplitWise",
   "description": "Split expenses and bills between friends easily",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#0d9488",
   "theme_color": "#0d9488",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icon-512x512.png",
+      "src": "icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/apple-icon.png",
+      "src": "apple-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

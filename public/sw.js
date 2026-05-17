@@ -1,18 +1,18 @@
 const CACHE_NAME = 'splitwise-v2';
 const urlsToCache = [
-  '/',
-  '/manifest.json',
-  '/icon-512x512.png',
-  '/apple-icon.png',
-  '/icon-light-32x32.png',
-  '/icon-dark-32x32.png',
-  '/favicon.ico',
-  '/nexlyte.png',
-  '/placeholder-logo.png',
-  '/placeholder-logo.svg',
-  '/placeholder-user.jpg',
-  '/placeholder.jpg',
-  '/placeholder.svg'
+  './',
+  'manifest.json',
+  'icon-512x512.png',
+  'apple-icon.png',
+  'icon-light-32x32.png',
+  'icon-dark-32x32.png',
+  'favicon.ico',
+  'nexlyte.png',
+  'placeholder-logo.png',
+  'placeholder-logo.svg',
+  'placeholder-user.jpg',
+  'placeholder.jpg',
+  'placeholder.svg'
 ];
 
 self.addEventListener('install', (event) => {
