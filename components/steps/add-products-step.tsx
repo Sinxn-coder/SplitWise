@@ -5,7 +5,7 @@ import { Plus, Trash2, Edit3, Check, X, ShoppingBag, IndianRupee, Hash } from "l
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MobileBottomSheet } from "@/components/mobile-bottom-sheet"
+import { PremiumModal } from "@/components/premium-modal"
 import type { Product } from "@/hooks/use-expense-data"
 
 interface AddProductsStepProps {
@@ -95,68 +95,27 @@ export function AddProductsStep({
   return (
     <>
       <Card className="border-border/50 shadow-lg">
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <ShoppingBag className="h-5 w-5 text-primary" />
-            Add Products
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Add items with unit price and quantity
-          </p>
+        <CardHeader className="pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <ShoppingBag className="h-5 w-5 text-primary" />
+              Add Products
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Add items with unit price and quantity
+            </p>
+          </div>
+          <Button
+            onClick={() => setIsSheetOpen(true)}
+            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+          >
+            <Plus className="h-4.5 w-4.5 mr-2" />
+            Add Product
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Desktop: Inline form */}
-          <div className="hidden md:flex flex-col sm:flex-row gap-2">
-            <Input
-              placeholder="Product name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="flex-1"
-            />
-            <div className="flex gap-2">
-              <div className="relative w-24">
-                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="number"
-                  placeholder="Price"
-                  value={newPrice}
-                  onChange={(e) => setNewPrice(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="pl-9"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <div className="relative w-20">
-                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="number"
-                  placeholder="Qty"
-                  value={newQuantity}
-                  onChange={(e) => setNewQuantity(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="pl-9"
-                  min="1"
-                />
-              </div>
-              <Button onClick={handleAddProduct} disabled={!newName.trim() || !newPrice}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add
-              </Button>
-            </div>
-          </div>
-
-          {/* Mobile: Button to open sheet */}
-          <div className="md:hidden">
-            <Button onClick={() => setIsSheetOpen(true)} className="w-full" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Product
-            </Button>
-          </div>
-
           {products.length > 0 && (
-            <div className="space-y-2 mt-4">
+            <div className="space-y-2 mt-2">
               {products.map((product, index) => (
                 <div
                   key={product.id}
@@ -270,9 +229,9 @@ export function AddProductsStep({
           )}
 
           {products.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <ShoppingBag className="h-12 w-12 mx-auto mb-2 opacity-30" />
-              <p>No products added yet</p>
+            <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-border/60 rounded-xl bg-muted/20">
+              <ShoppingBag className="h-12 w-12 mx-auto mb-2 opacity-30 text-emerald-600" />
+              <p className="font-semibold text-foreground/80">No products added yet</p>
               <p className="text-sm">Add items to split between friends</p>
             </div>
           )}
@@ -288,31 +247,39 @@ export function AddProductsStep({
         </CardContent>
       </Card>
 
-      {/* Mobile Bottom Sheet */}
-      <MobileBottomSheet isOpen={isSheetOpen} onClose={() => setIsSheetOpen(false)} title="Add Product">
+      {/* Premium Add Product Popup Modal */}
+      <PremiumModal
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        title="Add New Product"
+        description="Add a purchased product or item with price details"
+        icon={<ShoppingBag className="h-5 w-5 text-emerald-600" />}
+      >
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Product Name</label>
+            <label className="text-sm font-semibold text-foreground/90">Product Name</label>
             <Input
-              placeholder="Enter product name"
+              placeholder="e.g. Pizza, Coffee, Taxi Fare"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={handleKeyDown}
               autoFocus
-              className="h-12 text-base"
+              className="h-12 text-base border-border/80 focus:border-primary/80 focus:ring-primary/20 rounded-xl"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Unit Price</label>
+              <label className="text-sm font-semibold text-foreground/90">Unit Price</label>
               <div className="relative">
-                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground" />
                 <Input
                   type="number"
                   placeholder="0.00"
                   value={newPrice}
                   onChange={(e) => setNewPrice(e.target.value)}
-                  className="pl-9 h-12 text-base"
+                  onKeyDown={handleKeyDown}
+                  className="pl-9 h-12 text-base border-border/80 focus:border-primary/80 focus:ring-primary/20 rounded-xl"
                   min="0"
                   step="0.01"
                 />
@@ -320,40 +287,50 @@ export function AddProductsStep({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Quantity</label>
+              <label className="text-sm font-semibold text-foreground/90">Quantity</label>
               <Input
                 type="number"
                 placeholder="1"
                 value={newQuantity}
                 onChange={(e) => setNewQuantity(e.target.value)}
-                className="h-12 text-base"
+                onKeyDown={handleKeyDown}
+                className="h-12 text-base border-border/80 focus:border-primary/80 focus:ring-primary/20 rounded-xl"
                 min="1"
               />
             </div>
           </div>
 
           {newPrice && newQuantity && (
-            <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+            <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 animate-in fade-in slide-in-from-top-1 duration-200">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total</span>
-                <span className="flex items-center font-bold text-primary">
-                  <IndianRupee className="h-4 w-4" />
+                <span className="text-sm text-muted-foreground font-medium">Total Cost</span>
+                <span className="flex items-center font-bold text-primary text-lg">
+                  <IndianRupee className="h-4.5 w-4.5" />
                   {(parseFloat(newPrice || "0") * parseInt(newQuantity || "1")).toFixed(2)}
                 </span>
               </div>
             </div>
           )}
 
-          <Button
-            onClick={handleAddProduct}
-            disabled={!newName.trim() || !newPrice}
-            className="w-full h-12 text-base"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Product
-          </Button>
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsSheetOpen(false)}
+              className="flex-1 h-12 rounded-xl text-base"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddProduct}
+              disabled={!newName.trim() || !newPrice}
+              className="flex-1 h-12 rounded-xl text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Item
+            </Button>
+          </div>
         </div>
-      </MobileBottomSheet>
+      </PremiumModal>
     </>
   )
 }

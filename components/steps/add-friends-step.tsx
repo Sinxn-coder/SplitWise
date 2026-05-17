@@ -5,7 +5,7 @@ import { Plus, Trash2, Edit3, Check, X, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MobileBottomSheet } from "@/components/mobile-bottom-sheet"
+import { PremiumModal } from "@/components/premium-modal"
 import type { Person } from "@/hooks/use-expense-data"
 
 interface AddFriendsStepProps {
@@ -71,45 +71,27 @@ export function AddFriendsStep({
   return (
     <>
       <Card className="border-border/50 shadow-lg">
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Users className="h-5 w-5 text-primary" />
-            Add Friends
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Add the names of people who will split the bill
-          </p>
+        <CardHeader className="pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Users className="h-5 w-5 text-primary" />
+              Add Friends
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Add the names of people who will split the bill
+            </p>
+          </div>
+          <Button
+            onClick={() => setIsSheetOpen(true)}
+            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+          >
+            <Plus className="h-4.5 w-4.5 mr-2" />
+            Add Friend
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Desktop: Inline form */}
-          <div className="hidden md:flex gap-2">
-            <Input
-              placeholder="Enter friend&apos;s name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="flex-1"
-            />
-            <Button onClick={handleAddPerson} disabled={!newName.trim()}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add
-            </Button>
-          </div>
-
-          {/* Mobile: FAB to open sheet */}
-          <div className="md:hidden">
-            <Button
-              onClick={() => setIsSheetOpen(true)}
-              className="w-full"
-              variant="outline"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Person
-            </Button>
-          </div>
-
           {people.length > 0 && (
-            <div className="space-y-2 mt-4">
+            <div className="space-y-2 mt-2">
               {people.map((person, index) => (
                 <div
                   key={person.id}
@@ -169,9 +151,9 @@ export function AddFriendsStep({
           )}
 
           {people.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <Users className="h-12 w-12 mx-auto mb-2 opacity-30" />
-              <p>No friends added yet</p>
+            <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-border/60 rounded-xl bg-muted/20">
+              <Users className="h-12 w-12 mx-auto mb-2 opacity-30 text-emerald-600" />
+              <p className="font-semibold text-foreground/80">No friends added yet</p>
               <p className="text-sm">Add at least 2 people to continue</p>
             </div>
           )}
@@ -188,36 +170,47 @@ export function AddFriendsStep({
         </CardContent>
       </Card>
 
-      {/* Mobile Bottom Sheet */}
-      <MobileBottomSheet
+      {/* Premium Add Friend Popup Modal */}
+      <PremiumModal
         isOpen={isSheetOpen}
         onClose={() => setIsSheetOpen(false)}
-        title="Add Friend"
+        title="Add New Friend"
+        description="Introduce a friend who will share split charges"
+        icon={<Users className="h-5 w-5 text-emerald-600" />}
       >
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
+            <label className="text-sm font-semibold text-foreground/90">
               Friend&apos;s Name
             </label>
             <Input
-              placeholder="Enter name"
+              placeholder="e.g. Rahul, John, Priya"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={handleKeyDown}
               autoFocus
-              className="h-12 text-base"
+              className="h-12 text-base border-border/80 focus:border-primary/80 focus:ring-primary/20 rounded-xl"
             />
           </div>
-          <Button
-            onClick={handleAddPerson}
-            disabled={!newName.trim()}
-            className="w-full h-12 text-base"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Friend
-          </Button>
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsSheetOpen(false)}
+              className="flex-1 h-12 rounded-xl text-base"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddPerson}
+              disabled={!newName.trim()}
+              className="flex-1 h-12 rounded-xl text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Friend
+            </Button>
+          </div>
         </div>
-      </MobileBottomSheet>
+      </PremiumModal>
     </>
   )
 }
