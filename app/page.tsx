@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
-import { Wallet, ArrowRight, Sparkles, DollarSign, Send, Landmark, Coins } from "lucide-react"
+import { Wallet, ArrowRight, Sparkles, DollarSign, Send, Landmark, Coins, LogOut } from "lucide-react"
+import { LoginPage } from "@/components/login-page"
 
 // Import the main container dynamically with SSR disabled to make loading instantaneous
 const ExpenseSplitter = dynamic(
@@ -13,6 +14,20 @@ const ExpenseSplitter = dynamic(
 export default function Home() {
   const [isStarted, setIsStarted] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
+  const [userSession, setUserSession] = useState<{ id: string; username: string; full_name: string } | null>(null)
+
+  // Recover active session from localStorage on mount
+  useEffect(() => {
+    const cachedSession = localStorage.getItem("homiepay-user-session")
+    if (cachedSession) {
+      try {
+        setUserSession(JSON.parse(cachedSession))
+        setIsStarted(true) // Automatically bypass landing page if logged in!
+      } catch (e) {
+        localStorage.removeItem("homiepay-user-session")
+      }
+    }
+  }, [])
 
   const handleLaunch = () => {
     setIsExiting(true)
@@ -21,29 +36,66 @@ export default function Home() {
     }, 600) // matches transition duration
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem("homiepay-user-session")
+    setUserSession(null)
+  }
+
   if (isStarted) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 animate-in fade-in zoom-in-95 duration-500">
-        {/* Small Top bar to return to landing page */}
-        <div className="w-full bg-white border-b border-slate-200 py-2.5 px-4 flex justify-between items-center shadow-sm">
+      <div className="min-h-screen bg-slate-50 text-slate-900 animate-in fade-in zoom-in-95 duration-500 flex flex-col">
+        {/* Responsive Premium Top Navigation Bar */}
+        <div className="w-full bg-white border-b border-slate-200 py-3.5 px-4 md:px-6 flex justify-between items-center shadow-sm z-30">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-200">
-              <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-200 shadow-sm">
+              <Wallet className="h-4 w-4 text-emerald-600 stroke-[2.5]" />
             </div>
-            <span className="text-xs font-bold text-slate-800 tracking-wider">HOMIEPAY PRO</span>
+            <span className="text-xs font-black text-slate-800 tracking-wider">HOMIEPAY PRO</span>
           </div>
-          <button 
-            onClick={() => {
-              setIsExiting(false)
-              setIsStarted(false)
-            }}
-            className="text-[10px] text-slate-500 hover:text-slate-800 font-semibold px-2 py-1 rounded bg-slate-100 border border-slate-200 transition-all hover:scale-105 cursor-pointer"
-          >
-            ← Back to Intro
-          </button>
+
+          <div className="flex items-center gap-3.5">
+            {userSession && (
+              <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-slate-600">
+                  Hi, <span className="text-slate-800 font-extrabold">{userSession.full_name}</span>
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              {userSession && (
+                <button
+                  onClick={handleLogout}
+                  className="text-[10px] font-extrabold text-rose-600 hover:text-rose-700 bg-rose-50 border border-rose-100 hover:border-rose-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 uppercase tracking-wider shadow-sm"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign Out
+                </button>
+              )}
+              <button 
+                onClick={() => {
+                  setIsExiting(false)
+                  setIsStarted(false)
+                }}
+                className="text-[10px] text-slate-500 hover:text-slate-800 font-extrabold px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-350 transition-all cursor-pointer uppercase tracking-wider"
+              >
+                ← Back
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="max-w-5xl mx-auto p-4 md:py-8">
-          <ExpenseSplitter />
+
+        {/* Dynamic Main Workspace Container */}
+        <div className="flex-1 max-w-5xl w-full mx-auto p-4 md:py-8 flex flex-col justify-center">
+          {!userSession ? (
+            <LoginPage onSuccess={(session) => {
+              setUserSession(session);
+              localStorage.setItem("homiepay-user-session", JSON.stringify(session));
+            }} />
+          ) : (
+            <ExpenseSplitter userSession={userSession} />
+          )}
         </div>
       </div>
     )

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 
 const STEP_LABELS = ["Friends", "Products", "Assign", "Payer", "Summary"]
 
-export function ExpenseSplitter() {
+export function ExpenseSplitter({ userSession }: { userSession: { id: string; username: string; full_name: string } }) {
   const [activeTab, setActiveTab] = useState<"groups" | "splitter" | "history">("groups")
   const [currentStep, setCurrentStep] = useState(1)
   const [installPrompt, setInstallPrompt] = useState<any>(null)
@@ -56,7 +56,7 @@ export function ExpenseSplitter() {
     updateMemberInGroup,
     loadGroupIntoActiveSplit,
     grandTotal,
-  } = useExpenseData()
+  } = useExpenseData(userSession)
 
   // Register PWA service worker on mount & capture install prompt
   useEffect(() => {

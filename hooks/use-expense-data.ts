@@ -48,118 +48,91 @@ export interface ExpenseData {
   people: Person[]
   products: Product[]
   paidBy: string | null
+  payments?: Record<string, number>
 }
 
-const STORAGE_KEY = "splitwise-expense-data"
-const BILLS_STORAGE_KEY = "splitwise-saved-bills"
-const GROUPS_STORAGE_KEY = "splitwise-saved-groups"
-
-export function useExpenseData() {
-  const [people, setPeople] = useState<Person[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored) {
-          const data: ExpenseData = JSON.parse(stored)
-          return data.people || []
-        }
-      } catch (e) {
-        console.error("Failed to parse stored people:", e)
-      }
-    }
-    return []
-  })
-
-  const [products, setProducts] = useState<Product[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored) {
-          const data: ExpenseData = JSON.parse(stored)
-          return data.products || []
-        }
-      } catch (e) {
-        console.error("Failed to parse stored products:", e)
-      }
-    }
-    return []
-  })
-
-  const [paidBy, setPaidBy] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored) {
-          const data: ExpenseData = JSON.parse(stored)
-          return data.paidBy || null
-        }
-      } catch (e) {
-        console.error("Failed to parse stored paidBy:", e)
-      }
-    }
-    return null
-  })
-
-  const [payments, setPayments] = useState<Record<string, number>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored) {
-          const data: any = JSON.parse(stored)
-          if (data.payments) {
-            return data.payments
-          }
-          if (data.paidBy) {
-            return { [data.paidBy]: 0 }
-          }
-        }
-      } catch (e) {
-        console.error("Failed to parse stored payments:", e)
-      }
-    }
-    return {}
-  })
-
-  const [groups, setGroups] = useState<Group[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const storedGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
-        if (storedGroups) {
-          return JSON.parse(storedGroups)
-        }
-      } catch (e) {
-        console.error("Failed to parse stored groups:", e)
-      }
-    }
-    return []
-  })
-
-  const [savedBills, setSavedBills] = useState<SavedBill[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const storedBills = localStorage.getItem(BILLS_STORAGE_KEY)
-        if (storedBills) {
-          return JSON.parse(storedBills)
-        }
-      } catch (e) {
-        console.error("Failed to parse stored bills:", e)
-      }
-    }
-    return []
-  })
-
-  const [isLoaded, setIsLoaded] = useState(true)
+export function useExpenseData(userSession?: { id: string; username: string; full_name: string } | null) {
+  const [people, setPeople] = useState<Person[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [paidBy, setPaidBy] = useState<string | null>(null)
+  const [payments, setPayments] = useState<Record<string, number>>({})
+  const [groups, setGroups] = useState<Group[]>([])
+  const [savedBills, setSavedBills] = useState<SavedBill[]>([])
+  const [isLoaded, setIsLoaded] = useState(false)
 
   const grandTotal = products.reduce((sum, product) => sum + product.price * product.quantity, 0)
 
-  // Fetch from Supabase and synchronize/merge on mount
+  // Scoped storage keys based on user session ID to prevent multi-account crossovers
+  const userId = userSession?.id || "anonymous"
+  const STORAGE_KEY = `homiepay-expense-data-${userId}`
+  const BILLS_STORAGE_KEY = `homiepay-saved-bills-${userId}`
+  const GROUPS_STORAGE_KEY = `homiepay-saved-groups-${userId}`
+
+  // Load user data on mount / session change
   useEffect(() => {
+    if (!userSession) {
+      setIsLoaded(false)
+      return
+    }
+
+    // Load Local Storage Fallbacks Scoped to this User
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        const data: ExpenseData = JSON.parse(stored)
+        setPeople(data.people || [])
+        setProducts(data.products || [])
+        setPaidBy(data.paidBy || null)
+        setPayments(data.payments || {})
+      } else {
+        // Pre-populate with the current user as the first friend so they don't have to re-add themselves!
+        setPeople([{ id: "user-self", name: userSession.full_name }])
+        setProducts([])
+        setPaidBy(null)
+        setPayments({})
+      }
+    } catch (e) {
+      console.error("Failed to load user local storage:", e)
+    }
+
+    try {
+      const storedBills = localStorage.getItem(BILLS_STORAGE_KEY)
+      if (storedBills) {
+        setSavedBills(JSON.parse(storedBills))
+      } else {
+        setSavedBills([])
+      }
+    } catch (e) {
+      console.error("Failed to load user saved bills:", e)
+    }
+
+    try {
+      const storedGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
+      if (storedGroups) {
+        setGroups(JSON.parse(storedGroups))
+      } else {
+        setGroups([])
+      }
+    } catch (e) {
+      console.error("Failed to load user groups:", e)
+    }
+
+    setIsLoaded(true)
+  }, [userSession, STORAGE_KEY, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY])
+
+  // Fetch from Supabase and synchronize/merge when userSession is ready
+  useEffect(() => {
+    if (!userSession || !isLoaded) return
+
+    const currentUserId = userSession.id
+
     async function loadAndSyncFromSupabase() {
       try {
-        // 1. Sync Bills
+        // 1. Sync Bills associated with this user ID
         const { data: supabaseBills, error: billsErr } = await supabase
           .from("bills")
           .select("*")
+          .eq("user_id", currentUserId)
           .order("created_at", { ascending: false })
 
         if (!billsErr && supabaseBills) {
@@ -175,7 +148,6 @@ export function useExpenseData() {
             groupName: b.group_name
           }))
 
-          // Merge local bills and Supabase bills, picking newest version on conflicts
           const localStored = localStorage.getItem(BILLS_STORAGE_KEY)
           const localBills: SavedBill[] = localStored ? JSON.parse(localStored) : []
           const billsMap = new Map<string, SavedBill>()
@@ -197,10 +169,11 @@ export function useExpenseData() {
           setSavedBills(mergedBills)
         }
 
-        // 2. Sync Groups
+        // 2. Sync Groups associated with this user ID
         const { data: supabaseGroups, error: groupsErr } = await supabase
           .from("groups")
           .select("*")
+          .eq("user_id", currentUserId)
           .order("created_at", { ascending: false })
 
         if (!groupsErr && supabaseGroups) {
@@ -212,7 +185,6 @@ export function useExpenseData() {
             createdAt: new Date(g.created_at).getTime()
           }))
 
-          // Merge local groups and Supabase groups, picking newest version on conflicts
           const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
           const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
           const groupsMap = new Map<string, Group>()
@@ -238,29 +210,30 @@ export function useExpenseData() {
       }
     }
 
-    if (typeof window !== "undefined") {
-      loadAndSyncFromSupabase()
-    }
-  }, [])
+    loadAndSyncFromSupabase()
+  }, [userSession, isLoaded, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY])
 
   // Save to localStorage when active bill data changes
   useEffect(() => {
-    if (isLoaded) {
+    if (isLoaded && userSession) {
       const data = { people, products, paidBy, payments }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     }
-  }, [people, products, paidBy, payments, isLoaded])
+  }, [people, products, paidBy, payments, isLoaded, STORAGE_KEY, userSession])
 
   // Save groups helper
   const saveGroupsToStorage = useCallback(async (newGroups: Group[]) => {
     setGroups(newGroups)
     localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(newGroups))
 
+    if (!userSession) return
+
     // Async cloud backup to Supabase
     try {
       for (const group of newGroups) {
         await supabase.from("groups").upsert({
           id: group.id,
+          user_id: userSession.id,
           name: group.name,
           members: group.members,
           color: group.color,
@@ -270,7 +243,7 @@ export function useExpenseData() {
     } catch (err) {
       console.warn("Supabase failed to backup groups:", err)
     }
-  }, [])
+  }, [userSession, GROUPS_STORAGE_KEY])
 
   // Person operations
   const addPerson = useCallback((name: string) => {
@@ -535,20 +508,23 @@ export function useExpenseData() {
     setSavedBills(bills)
 
     // 2. Cloud Backup to Supabase
-    try {
-      await supabase.from("bills").upsert({
-        id: bill.id,
-        created_at: new Date(bill.createdAt).toISOString(),
-        people: bill.people,
-        products: bill.products,
-        paid_by: bill.paidBy,
-        payments: bill.payments,
-        grand_total: bill.grandTotal,
-        group_id: bill.groupId,
-        group_name: bill.groupName
-      })
-    } catch (err) {
-      console.warn("Supabase failed to backup bill split:", err)
+    if (userSession) {
+      try {
+        await supabase.from("bills").upsert({
+          id: bill.id,
+          user_id: userSession.id,
+          created_at: new Date(bill.createdAt).toISOString(),
+          people: bill.people,
+          products: bill.products,
+          paid_by: bill.paidBy,
+          payments: bill.payments,
+          grand_total: bill.grandTotal,
+          group_id: bill.groupId,
+          group_name: bill.groupName
+        })
+      } catch (err) {
+        console.warn("Supabase failed to backup bill split:", err)
+      }
     }
 
     return bill.id
