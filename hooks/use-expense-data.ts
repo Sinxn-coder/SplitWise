@@ -6,6 +6,8 @@ import { supabase } from "../lib/supabase"
 export interface Person {
   id: string
   name: string
+  username?: string
+  userId?: string
 }
 
 export interface ProductAssignment {
@@ -595,7 +597,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   }, [savedBills])
 
   // Group Operations
-  const addGroup = useCallback((name: string) => {
+  const addGroup = useCallback((name: string, addSelf: boolean = false) => {
     const colors = [
       "#0d9488", "#10b981", "#3b82f6", "#8b5cf6", 
       "#ec4899", "#f59e0b", "#ef4444", "#14b8a6"
@@ -606,10 +608,20 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     const randomHex = Math.random().toString(36).substring(2, 8).toUpperCase()
     const shareCode = `HP-${randomHex}`
 
+    const initialMembers: Person[] = []
+    if (addSelf && userSession) {
+      initialMembers.push({
+        id: crypto.randomUUID(),
+        name: userSession.full_name || userSession.username,
+        username: userSession.username,
+        userId: userSession.id
+      })
+    }
+
     const newGroup: Group = {
       id: crypto.randomUUID(),
       name: name.trim(),
-      members: [],
+      members: initialMembers,
       color: randomColor,
       createdAt: Date.now(),
       shareCode: shareCode
@@ -617,7 +629,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     const updated = [newGroup, ...groups]
     saveGroupsToStorage(updated)
     return newGroup.id
-  }, [groups, saveGroupsToStorage])
+  }, [groups, saveGroupsToStorage, userSession])
 
   const updateGroup = useCallback((id: string, updates: Partial<Omit<Group, "id">>) => {
     const updated = groups.map((g) => (g.id === id ? { ...g, ...updates } : g))
@@ -706,15 +718,26 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
         return { success: false, message: "You are already a member of this group!" }
       }
 
-      // 2. Format group
+      // 2. Format group and add self to members
+      const newMember: Person = {
+        id: crypto.randomUUID(),
+        name: userSession?.full_name || userSession?.username || "Unknown",
+        username: userSession?.username,
+        userId: userSession?.id
+      }
+      const updatedMembers = [...(groupData.members || []), newMember]
+
       const formattedGroup: Group = {
         id: groupData.id,
         name: groupData.name,
-        members: groupData.members,
+        members: updatedMembers,
         color: groupData.color,
         createdAt: new Date(groupData.created_at).getTime(),
         shareCode: groupData.share_code
       }
+
+      // Update the group in Supabase to include the new member
+      await supabase.from("groups").update({ members: updatedMembers }).eq("id", formattedGroup.id)
 
       // 3. Save to local storage for joined groups tracking
       const storedJoinedKey = `homiepay-joined-group-ids-${userId}`
@@ -735,7 +758,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       console.error("Failed to join group:", err)
       return { success: false, message: err.message || "An error occurred while joining the group." }
     }
-  }, [groups, userId, GROUPS_STORAGE_KEY])
+  }, [groups, userId, GROUPS_STORAGE_KEY, userSession])
 
   return {
     people,

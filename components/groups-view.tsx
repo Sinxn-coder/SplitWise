@@ -20,7 +20,7 @@ import type { Group, Person } from "@/hooks/use-expense-data"
 
 interface GroupsViewProps {
   groups: Group[]
-  onAddGroup: (name: string) => string
+  onAddGroup: (name: string, addSelf: boolean) => string
   onUpdateGroup: (id: string, updates: Partial<Omit<Group, "id">>) => void
   onDeleteGroup: (id: string) => void
   onAddMember: (groupId: string, name: string) => string
@@ -60,10 +60,11 @@ export function GroupsView({
   const [joinSuccess, setJoinSuccess] = useState("")
   const [isJoining, setIsJoining] = useState(false)
   const [copiedGroupId, setCopiedGroupId] = useState<string | null>(null)
+  const [addSelfToGroup, setAddSelfToGroup] = useState(true)
 
   const handleAddGroup = () => {
     if (newGroupName.trim()) {
-      const groupId = onAddGroup(newGroupName.trim())
+      const groupId = onAddGroup(newGroupName.trim(), addSelfToGroup)
       setNewGroupName("")
       setShowAddGroup(false)
       setExpandedGroupId(groupId)
@@ -437,29 +438,6 @@ export function GroupsView({
                       </div>
                     </div>
 
-                    {/* Share Code Copy Box */}
-                    {group.shareCode && (
-                      <div 
-                        onClick={(e) => handleCopyCode(e, group)}
-                        className="mt-4 p-3 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between cursor-pointer hover:bg-slate-100/80 transition-all select-none active:scale-[0.99] group/sharebox"
-                      >
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Share Code</span>
-                          <span className="text-xs font-mono font-black text-slate-700 tracking-wider mt-0.5">{group.shareCode}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100/60 px-2.5 py-1.5 rounded-xl group-hover/sharebox:bg-emerald-100 transition-colors">
-                          {copiedGroupId === group.id ? (
-                            <span className="text-emerald-700 font-extrabold">Copied!</span>
-                          ) : (
-                            <>
-                              <span>Copy Code</span>
-                              <Copy className="h-3 w-3" />
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Use Group Button */}
                     <Button
                       className="w-full mt-3"
@@ -549,6 +527,15 @@ export function GroupsView({
                   if (e.key === "Enter") handleAddGroup()
                 }}
               />
+              <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer pl-1">
+                <input
+                  type="checkbox"
+                  checked={addSelfToGroup}
+                  onChange={(e) => setAddSelfToGroup(e.target.checked)}
+                  className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                />
+                Add me to this group
+              </label>
               <Button
                 className="w-full py-5 rounded-xl font-bold uppercase tracking-wider text-xs"
                 onClick={handleAddGroup}
