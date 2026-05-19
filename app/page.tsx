@@ -94,7 +94,13 @@ export default function Home() {
               localStorage.setItem("homiepay-user-session", JSON.stringify(session));
             }} />
           ) : (
-            <ExpenseSplitter userSession={userSession} />
+            <ExpenseSplitter 
+              userSession={userSession} 
+              onProfileUpdate={(updatedSession) => {
+                setUserSession(updatedSession);
+                localStorage.setItem("homiepay-user-session", JSON.stringify(updatedSession));
+              }}
+            />
           )}
         </div>
       </div>

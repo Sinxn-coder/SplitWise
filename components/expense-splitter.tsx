@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Receipt, Plus, Users, History, Download, DollarSign, Smartphone, X } from "lucide-react"
+import { Receipt, Plus, Users, History, Download, DollarSign, Smartphone, X, User } from "lucide-react"
 import { StepIndicator } from "@/components/step-indicator"
 import { AddFriendsStep } from "@/components/steps/add-friends-step"
 import { AddProductsStep } from "@/components/steps/add-products-step"
@@ -10,13 +10,20 @@ import { SelectPayerStep } from "@/components/steps/select-payer-step"
 import { FinalCalculationStep } from "@/components/steps/final-calculation-step"
 import { SavedBills } from "@/components/saved-bills"
 import { GroupsView } from "@/components/groups-view"
+import { ProfileView } from "@/components/profile-view"
 import { useExpenseData, SavedBill } from "@/hooks/use-expense-data"
 import { Button } from "@/components/ui/button"
 
 const STEP_LABELS = ["Friends", "Products", "Assign", "Payer", "Summary"]
 
-export function ExpenseSplitter({ userSession }: { userSession: { id: string; username: string; full_name: string } }) {
-  const [activeTab, setActiveTab] = useState<"groups" | "splitter" | "history">("groups")
+export function ExpenseSplitter({ 
+  userSession,
+  onProfileUpdate
+}: { 
+  userSession: { id: string; username: string; full_name: string },
+  onProfileUpdate: (session: { id: string; username: string; full_name: string }) => void
+}) {
+  const [activeTab, setActiveTab] = useState<"groups" | "splitter" | "history" | "profile">("groups")
   const [currentStep, setCurrentStep] = useState(1)
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [showPwaPopup, setShowPwaPopup] = useState(false)
@@ -239,6 +246,18 @@ export function ExpenseSplitter({ userSession }: { userSession: { id: string; us
                 {savedBills.length}
               </span>
             </button>
+
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`w-full px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 flex items-center gap-3 cursor-pointer ${
+                activeTab === "profile"
+                  ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/10 scale-102"
+                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              }`}
+            >
+              <User className="h-4 w-4" />
+              <span>Profile</span>
+            </button>
             
             {/* Divider */}
             <div className="h-px bg-border/50 my-2" />
@@ -367,6 +386,18 @@ export function ExpenseSplitter({ userSession }: { userSession: { id: string; us
                 />
               </div>
             )}
+
+            {/* PROFILE TAB */}
+            {activeTab === "profile" && (
+              <div className="animate-in fade-in slide-in-from-bottom-3 duration-300">
+                <ProfileView
+                  userSession={userSession}
+                  onProfileUpdate={onProfileUpdate}
+                  totalGroups={groups.length}
+                  totalBills={savedBills.length}
+                />
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -407,6 +438,18 @@ export function ExpenseSplitter({ userSession }: { userSession: { id: string; us
             <History className="h-5 w-5" />
           </div>
           <span>History</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("profile")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-all ${
+            activeTab === "profile" ? "text-emerald-600 scale-105" : "text-muted-foreground"
+          }`}
+        >
+          <div className={`p-1.5 rounded-lg ${activeTab === "profile" ? "bg-emerald-50 text-emerald-600" : ""}`}>
+            <User className="h-5 w-5" />
+          </div>
+          <span>Profile</span>
         </button>
       </div>
 
