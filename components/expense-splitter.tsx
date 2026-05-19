@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { Receipt, Plus, Users, History, Download, DollarSign, Smartphone, X } from "lucide-react"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { StepIndicator } from "@/components/step-indicator"
 import { AddFriendsStep } from "@/components/steps/add-friends-step"
 import { AddProductsStep } from "@/components/steps/add-products-step"
@@ -180,7 +179,6 @@ export function ExpenseSplitter() {
                 New Bill
               </Button>
             )}
-            <ThemeToggle />
           </div>
         </div>
       </header>
