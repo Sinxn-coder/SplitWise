@@ -10,6 +10,7 @@ import {
   X,
   ChevronRight,
   Receipt,
+  Copy,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +26,7 @@ interface GroupsViewProps {
   onAddMember: (groupId: string, name: string) => string
   onRemoveMember: (groupId: string, personId: string) => void
   onUpdateMember: (groupId: string, personId: string, name: string) => void
+  onJoinGroup: (code: string) => Promise<{ success: boolean; message: string; groupName?: string }>
   onSelectGroup: (groupId: string) => void
   onNewBill: () => void
 }
@@ -37,6 +39,7 @@ export function GroupsView({
   onAddMember,
   onRemoveMember,
   onUpdateMember,
+  onJoinGroup,
   onSelectGroup,
   onNewBill,
 }: GroupsViewProps) {
@@ -49,6 +52,14 @@ export function GroupsView({
   const [addingMemberGroupId, setAddingMemberGroupId] = useState<string | null>(null)
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editingMemberName, setEditingMemberName] = useState("")
+
+  // Sharing states
+  const [activeAddTab, setActiveAddTab] = useState<"create" | "join">("create")
+  const [shareCodeInput, setShareCodeInput] = useState("")
+  const [joinError, setJoinError] = useState("")
+  const [joinSuccess, setJoinSuccess] = useState("")
+  const [isJoining, setIsJoining] = useState(false)
+  const [copiedGroupId, setCopiedGroupId] = useState<string | null>(null)
 
   const handleAddGroup = () => {
     if (newGroupName.trim()) {
@@ -83,6 +94,48 @@ export function GroupsView({
     }
   }
 
+  const handleJoinGroup = async () => {
+    setJoinError("")
+    setJoinSuccess("")
+    setIsJoining(true)
+
+    const code = shareCodeInput.trim().toUpperCase()
+    if (!code) {
+      setJoinError("Please enter a group share code.")
+      setIsJoining(false)
+      return
+    }
+
+    try {
+      const res = await onJoinGroup(code)
+      if (res.success) {
+        setJoinSuccess(`Successfully joined "${res.groupName}"!`)
+        setShareCodeInput("")
+        setTimeout(() => {
+          setShowAddGroup(false)
+          setJoinSuccess("")
+          // Switch tab back to default for next open
+          setActiveAddTab("create")
+        }, 1500)
+      } else {
+        setJoinError(res.message)
+      }
+    } catch (err) {
+      setJoinError("Could not join group. Try again!")
+    } finally {
+      setIsJoining(false)
+    }
+  }
+
+  const handleCopyCode = (e: React.MouseEvent, group: Group) => {
+    e.stopPropagation()
+    if (!group.shareCode) return
+    
+    navigator.clipboard.writeText(group.shareCode)
+    setCopiedGroupId(group.id)
+    setTimeout(() => setCopiedGroupId(null), 2000)
+  }
+
   return (
     <div className="space-y-4">
       {/* Quick Start */}
@@ -111,19 +164,22 @@ export function GroupsView({
               <Users className="h-5 w-5 text-primary" />
               Groups
             </CardTitle>
-            {/* Desktop Add Button */}
+            {/* Desktop Add/Join Button */}
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setShowAddGroup(true)}
+              onClick={() => {
+                setShowAddGroup(true)
+                setActiveAddTab("create")
+              }}
               className="hidden sm:flex"
             >
               <Plus className="h-4 w-4 mr-1" />
-              New Group
+              Add or Join Group
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Create groups for recurring expense sharing
+            Create groups or enter a share code to join a shared workspace
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -131,7 +187,7 @@ export function GroupsView({
             <div className="text-center py-8 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p>No groups yet</p>
-              <p className="text-sm">Create a group to save your friends</p>
+              <p className="text-sm">Create a group or join one to save sheet splits</p>
             </div>
           ) : (
             groups.map((group) => (
@@ -186,9 +242,30 @@ export function GroupsView({
                       ) : (
                         <>
                           <h4 className="font-semibold">{group.name}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {group.members.length} member{group.members.length !== 1 ? "s" : ""}
-                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-muted-foreground font-medium">
+                              {group.members.length} member{group.members.length !== 1 ? "s" : ""}
+                            </span>
+                            {group.shareCode && (
+                              <>
+                                <span className="text-[9px] text-slate-350">•</span>
+                                <span
+                                  onClick={(e) => handleCopyCode(e, group)}
+                                  className="text-[9px] font-mono font-bold bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1"
+                                  title="Copy share code"
+                                >
+                                  {copiedGroupId === group.id ? (
+                                    <span className="text-emerald-600 font-extrabold">Copied!</span>
+                                  ) : (
+                                    <>
+                                      <span>Code: {group.shareCode}</span>
+                                      <Copy className="h-2.5 w-2.5 opacity-65" />
+                                    </>
+                                  )}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </>
                       )}
                     </div>
@@ -375,43 +452,125 @@ export function GroupsView({
             ))
           )}
 
-          {/* Mobile Add Group Button */}
+          {/* Mobile Add/Join Button */}
           <div className="sm:hidden pt-2">
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => setShowAddGroup(true)}
+              onClick={() => {
+                setShowAddGroup(true)
+                setActiveAddTab("create")
+              }}
             >
               <Plus className="h-4 w-4 mr-1" />
-              New Group
+              Add or Join Group
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Mobile Add Group Sheet */}
+      {/* Mobile/Desktop Combined Sheet */}
       <MobileBottomSheet
         isOpen={showAddGroup}
         onClose={() => {
           setShowAddGroup(false)
           setNewGroupName("")
+          setShareCodeInput("")
+          setJoinError("")
+          setJoinSuccess("")
+          setActiveAddTab("create")
         }}
-        title="Create New Group"
+        title="Add Group"
       >
-        <div className="space-y-4">
-          <Input
-            placeholder="Enter group name (e.g., College Friends)"
-            value={newGroupName}
-            onChange={(e) => setNewGroupName(e.target.value)}
-            autoFocus
-          />
-          <Button
-            className="w-full"
-            onClick={handleAddGroup}
-            disabled={!newGroupName.trim()}
-          >
-            Create Group
-          </Button>
+        <div className="space-y-4 pt-1">
+          {/* Tab Selector */}
+          <div className="flex bg-slate-100/80 border border-slate-200/50 p-1.5 rounded-2xl">
+            <button
+              onClick={() => {
+                setActiveAddTab("create")
+                setJoinError("")
+                setJoinSuccess("")
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                activeAddTab === "create"
+                  ? "bg-white text-slate-800 shadow-sm border border-slate-200/20"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Create New Group
+            </button>
+            <button
+              onClick={() => {
+                setActiveAddTab("join")
+                setJoinError("")
+                setJoinSuccess("")
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                activeAddTab === "join"
+                  ? "bg-white text-slate-800 shadow-sm border border-slate-200/20"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Join via Share Code
+            </button>
+          </div>
+
+          {activeAddTab === "create" ? (
+            <div className="space-y-4 pt-2">
+              <Input
+                placeholder="Enter group name (e.g., Roommates 2026)"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAddGroup()
+                }}
+              />
+              <Button
+                className="w-full py-5 rounded-xl font-bold uppercase tracking-wider text-xs"
+                onClick={handleAddGroup}
+                disabled={!newGroupName.trim()}
+              >
+                Create Group
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-2">
+              <Input
+                placeholder="Enter 9-character code (e.g., HP-A4F9)"
+                value={shareCodeInput}
+                onChange={(e) => {
+                  setShareCodeInput(e.target.value.toUpperCase())
+                  setJoinError("")
+                }}
+                className="font-mono text-center tracking-widest text-sm font-black placeholder:font-sans placeholder:tracking-normal placeholder:text-xs uppercase"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleJoinGroup()
+                }}
+              />
+              
+              {joinError && (
+                <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 p-3 rounded-xl text-center animate-in fade-in duration-200">
+                  {joinError}
+                </p>
+              )}
+
+              {joinSuccess && (
+                <p className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 p-3 rounded-xl text-center animate-in fade-in duration-200">
+                  {joinSuccess}
+                </p>
+              )}
+
+              <Button
+                className="w-full py-5 rounded-xl font-bold uppercase tracking-wider text-xs"
+                onClick={handleJoinGroup}
+                disabled={!shareCodeInput.trim() || isJoining}
+              >
+                {isJoining ? "Joining Workspace..." : "Join Group"}
+              </Button>
+            </div>
+          )}
         </div>
       </MobileBottomSheet>
     </div>

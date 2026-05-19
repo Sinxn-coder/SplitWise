@@ -62,6 +62,7 @@ export function ExpenseSplitter({
     removeMemberFromGroup,
     updateMemberInGroup,
     loadGroupIntoActiveSplit,
+    joinGroupByShareCode,
     grandTotal,
   } = useExpenseData(userSession)
 
@@ -292,6 +293,7 @@ export function ExpenseSplitter({
                   onAddMember={addMemberToGroup}
                   onRemoveMember={removeMemberFromGroup}
                   onUpdateMember={updateMemberInGroup}
+                  onJoinGroup={joinGroupByShareCode}
                   onSelectGroup={(groupId) => {
                     loadGroupIntoActiveSplit(groupId)
                     setCurrentStep(2) // Skip Step 1 (Friends) since group loaded them!

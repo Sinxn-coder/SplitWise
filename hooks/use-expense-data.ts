@@ -29,6 +29,7 @@ export interface Group {
   members: Person[]
   color: string
   createdAt: number
+  shareCode?: string
 }
 
 export interface SavedBill {
@@ -128,12 +129,83 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
 
     async function loadAndSyncFromSupabase() {
       try {
-        // 1. Sync Bills associated with this user ID
-        const { data: supabaseBills, error: billsErr } = await supabase
-          .from("bills")
+        // 1. Sync Groups (Created by us OR Joined by us via share code)
+        const storedJoinedKey = `homiepay-joined-group-ids-${currentUserId}`
+        const storedJoined = localStorage.getItem(storedJoinedKey)
+        const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
+
+        let supabaseGroups: any[] = []
+        const { data: createdGroups, error: groupsErr } = await supabase
+          .from("groups")
           .select("*")
           .eq("user_id", currentUserId)
-          .order("created_at", { ascending: false })
+
+        if (!groupsErr && createdGroups) {
+          supabaseGroups.push(...createdGroups)
+        }
+
+        if (joinedIds.length > 0) {
+          const { data: joinedGroups, error: joinedErr } = await supabase
+            .from("groups")
+            .select("*")
+            .in("id", joinedIds)
+          if (!joinedErr && joinedGroups) {
+            joinedGroups.forEach((jg: any) => {
+              if (!supabaseGroups.some(cg => cg.id === jg.id)) {
+                supabaseGroups.push(jg)
+              }
+            })
+          }
+        }
+
+        let mergedGroups: Group[] = []
+        if (supabaseGroups.length > 0) {
+          const formattedGroups: Group[] = supabaseGroups.map((g: any) => ({
+            id: g.id,
+            name: g.name,
+            members: g.members,
+            color: g.color,
+            createdAt: new Date(g.created_at).getTime(),
+            shareCode: g.share_code
+          }))
+
+          const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
+          const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
+          const groupsMap = new Map<string, Group>()
+
+          localGroups.forEach(g => groupsMap.set(g.id, g))
+          formattedGroups.forEach(g => {
+            if (groupsMap.has(g.id)) {
+              const existing = groupsMap.get(g.id)!
+              if (g.createdAt > existing.createdAt) {
+                groupsMap.set(g.id, g)
+              }
+            } else {
+              groupsMap.set(g.id, g)
+            }
+          })
+
+          mergedGroups = Array.from(groupsMap.values()).sort((a, b) => b.createdAt - a.createdAt)
+          localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(mergedGroups))
+          setGroups(mergedGroups)
+        } else {
+          const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
+          mergedGroups = localStoredGroups ? JSON.parse(localStoredGroups) : []
+        }
+
+        // Get unified list of group IDs to sync bills
+        const allGroupIds = mergedGroups.map(g => g.id)
+
+        // 2. Sync Bills associated with either this user ID OR any of our group sheets
+        let billsQuery = supabase.from("bills").select("*")
+        if (allGroupIds.length > 0) {
+          // Sync bills that belong to our user OR belong to our groups
+          billsQuery = billsQuery.or(`user_id.eq.${currentUserId},group_id.in.(${allGroupIds.join(",")})`)
+        } else {
+          billsQuery = billsQuery.eq("user_id", currentUserId)
+        }
+
+        const { data: supabaseBills, error: billsErr } = await billsQuery.order("created_at", { ascending: false })
 
         if (!billsErr && supabaseBills) {
           const formattedBills: SavedBill[] = supabaseBills.map((b: any) => ({
@@ -168,43 +240,6 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
           localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(mergedBills))
           setSavedBills(mergedBills)
         }
-
-        // 2. Sync Groups associated with this user ID
-        const { data: supabaseGroups, error: groupsErr } = await supabase
-          .from("groups")
-          .select("*")
-          .eq("user_id", currentUserId)
-          .order("created_at", { ascending: false })
-
-        if (!groupsErr && supabaseGroups) {
-          const formattedGroups: Group[] = supabaseGroups.map((g: any) => ({
-            id: g.id,
-            name: g.name,
-            members: g.members,
-            color: g.color,
-            createdAt: new Date(g.created_at).getTime()
-          }))
-
-          const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
-          const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
-          const groupsMap = new Map<string, Group>()
-
-          localGroups.forEach(g => groupsMap.set(g.id, g))
-          formattedGroups.forEach(g => {
-            if (groupsMap.has(g.id)) {
-              const existing = groupsMap.get(g.id)!
-              if (g.createdAt > existing.createdAt) {
-                groupsMap.set(g.id, g)
-              }
-            } else {
-              groupsMap.set(g.id, g)
-            }
-          })
-
-          const mergedGroups = Array.from(groupsMap.values()).sort((a, b) => b.createdAt - a.createdAt)
-          localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(mergedGroups))
-          setGroups(mergedGroups)
-        }
       } catch (err) {
         console.warn("Supabase background sync paused. Fallback to Local Storage:", err)
       }
@@ -237,7 +272,8 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
           name: group.name,
           members: group.members,
           color: group.color,
-          created_at: new Date(group.createdAt).toISOString()
+          created_at: new Date(group.createdAt).toISOString(),
+          share_code: group.shareCode
         })
       }
     } catch (err) {
@@ -565,12 +601,18 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       "#ec4899", "#f59e0b", "#ef4444", "#14b8a6"
     ]
     const randomColor = colors[Math.floor(Math.random() * colors.length)]
+    
+    // Generate human-readable short share code: e.g. HP-XF89D
+    const randomHex = Math.random().toString(36).substring(2, 8).toUpperCase()
+    const shareCode = `HP-${randomHex}`
+
     const newGroup: Group = {
       id: crypto.randomUUID(),
       name: name.trim(),
       members: [],
       color: randomColor,
       createdAt: Date.now(),
+      shareCode: shareCode
     }
     const updated = [newGroup, ...groups]
     saveGroupsToStorage(updated)
@@ -642,6 +684,59 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     }
   }, [groups])
 
+  const joinGroupByShareCode = useCallback(async (code: string) => {
+    try {
+      const cleanCode = code.trim().toUpperCase()
+      if (!cleanCode) return { success: false, message: "Code cannot be empty." }
+
+      // 1. Fetch group details from Supabase by share code
+      const { data: groupData, error: groupErr } = await supabase
+        .from("groups")
+        .select("*")
+        .eq("share_code", cleanCode)
+        .single()
+
+      if (groupErr || !groupData) {
+        return { success: false, message: "Group not found. Please double check the share code." }
+      }
+
+      // Check if we are already a member of this group in our local groups state
+      const alreadyMember = groups.some(g => g.id === groupData.id)
+      if (alreadyMember) {
+        return { success: false, message: "You are already a member of this group!" }
+      }
+
+      // 2. Format group
+      const formattedGroup: Group = {
+        id: groupData.id,
+        name: groupData.name,
+        members: groupData.members,
+        color: groupData.color,
+        createdAt: new Date(groupData.created_at).getTime(),
+        shareCode: groupData.share_code
+      }
+
+      // 3. Save to local storage for joined groups tracking
+      const storedJoinedKey = `homiepay-joined-group-ids-${userId}`
+      const storedJoined = localStorage.getItem(storedJoinedKey)
+      const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
+      if (!joinedIds.includes(formattedGroup.id)) {
+        joinedIds.push(formattedGroup.id)
+        localStorage.setItem(storedJoinedKey, JSON.stringify(joinedIds))
+      }
+
+      // 4. Add to active groups list
+      const updated = [formattedGroup, ...groups]
+      localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(updated))
+      setGroups(updated)
+
+      return { success: true, message: "Joined group successfully!", groupName: formattedGroup.name }
+    } catch (err: any) {
+      console.error("Failed to join group:", err)
+      return { success: false, message: err.message || "An error occurred while joining the group." }
+    }
+  }, [groups, userId, GROUPS_STORAGE_KEY])
+
   return {
     people,
     products,
@@ -676,6 +771,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     removeMemberFromGroup,
     updateMemberInGroup,
     loadGroupIntoActiveSplit,
+    joinGroupByShareCode,
     grandTotal,
   }
 }
