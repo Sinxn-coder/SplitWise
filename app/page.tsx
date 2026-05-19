@@ -64,15 +64,6 @@ export default function Home() {
             )}
 
             <div className="flex items-center gap-2">
-              {userSession && (
-                <button
-                  onClick={handleLogout}
-                  className="text-[10px] font-extrabold text-rose-600 hover:text-rose-700 bg-rose-50 border border-rose-100 hover:border-rose-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 uppercase tracking-wider shadow-sm"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  Sign Out
-                </button>
-              )}
               <button 
                 onClick={() => {
                   setIsExiting(false)
