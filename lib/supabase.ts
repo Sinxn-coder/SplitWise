@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ksdegmsuhzqqdlnzsqmu.supabase.co"
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzZGVnbXN1aHpxcWRsbnpzcW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODYzNjAsImV4cCI6MjA5NDc2MjM2MH0.wasZ_gQLkZsVT80rzpDz_6KexfK4qVA2gWnjcMh5rog"
 
 // Safe, recursive dummy mock client that returns resolved promises on any chained calls
 // to prevent crashes on deployed sites when environment variables are not yet configured.
