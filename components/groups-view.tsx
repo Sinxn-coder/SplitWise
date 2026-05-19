@@ -247,31 +247,27 @@ export function GroupsView({
                             <span className="text-[10px] text-muted-foreground font-medium">
                               {group.members.length} member{group.members.length !== 1 ? "s" : ""}
                             </span>
-                            {group.shareCode && (
-                              <>
-                                <span className="text-[9px] text-slate-350">•</span>
-                                <span
-                                  onClick={(e) => handleCopyCode(e, group)}
-                                  className="text-[9px] font-mono font-bold bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1"
-                                  title="Copy share code"
-                                >
-                                  {copiedGroupId === group.id ? (
-                                    <span className="text-emerald-600 font-extrabold">Copied!</span>
-                                  ) : (
-                                    <>
-                                      <span>Code: {group.shareCode}</span>
-                                      <Copy className="h-2.5 w-2.5 opacity-65" />
-                                    </>
-                                  )}
-                                </span>
-                              </>
-                            )}
                           </div>
                         </>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
+                    {group.shareCode && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={(e) => handleCopyCode(e, group)}
+                        title="Copy Share Code"
+                      >
+                        {copiedGroupId === group.id ? (
+                          <Check className="h-4 w-4 text-emerald-600" />
+                        ) : (
+                          <Copy className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    )}
                     <Button
                       size="icon"
                       variant="ghost"
