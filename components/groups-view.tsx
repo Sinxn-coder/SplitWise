@@ -437,9 +437,32 @@ export function GroupsView({
                       </div>
                     </div>
 
+                    {/* Share Code Copy Box */}
+                    {group.shareCode && (
+                      <div 
+                        onClick={(e) => handleCopyCode(e, group)}
+                        className="mt-4 p-3 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between cursor-pointer hover:bg-slate-100/80 transition-all select-none active:scale-[0.99] group/sharebox"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Share Code</span>
+                          <span className="text-xs font-mono font-black text-slate-700 tracking-wider mt-0.5">{group.shareCode}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100/60 px-2.5 py-1.5 rounded-xl group-hover/sharebox:bg-emerald-100 transition-colors">
+                          {copiedGroupId === group.id ? (
+                            <span className="text-emerald-700 font-extrabold">Copied!</span>
+                          ) : (
+                            <>
+                              <span>Copy Code</span>
+                              <Copy className="h-3 w-3" />
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Use Group Button */}
                     <Button
-                      className="w-full mt-4"
+                      className="w-full mt-3"
                       onClick={() => onSelectGroup(group.id)}
                       disabled={group.members.length === 0}
                     >
