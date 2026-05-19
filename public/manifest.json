@@ -1,9 +1,9 @@
 {
-  "name": "SplitWise - Bill Splitter",
-  "short_name": "SplitWise",
+  "name": "HomiePay - Bill Splitter",
+  "short_name": "HomiePay",
   "description": "Split expenses and bills between friends easily",
-  "start_url": "/SplitWise/",
-  "scope": "/SplitWise/",
+  "start_url": "/HomiePay/",
+  "scope": "/HomiePay/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0d9488",

@@ -139,7 +139,7 @@ export function ExpenseSplitter() {
           <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg">
             <DollarSign className="h-6 w-6 text-white" />
           </div>
-          <p className="text-muted-foreground font-medium">Loading SplitWise...</p>
+          <p className="text-muted-foreground font-medium">Loading HomiePay...</p>
         </div>
       </div>
     )
@@ -156,7 +156,7 @@ export function ExpenseSplitter() {
               <DollarSign className="h-5 w-5 text-emerald-600 font-bold" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-foreground tracking-tight">SplitWise</h1>
+              <h1 className="text-lg font-bold text-foreground tracking-tight">HomiePay</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -442,7 +442,7 @@ export function ExpenseSplitter() {
                 <Smartphone className="h-5 w-5 text-emerald-600 animate-pulse" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-foreground">Install SplitWise PWA</h3>
+                <h3 className="font-bold text-sm text-foreground">Install HomiePay PWA</h3>
                 <p className="text-xs text-muted-foreground">Use fully offline like a native app!</p>
               </div>
             </div>

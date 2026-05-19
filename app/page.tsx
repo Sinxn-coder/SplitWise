@@ -30,7 +30,7 @@ export default function Home() {
             <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-200">
               <Wallet className="h-3.5 w-3.5 text-emerald-600" />
             </div>
-            <span className="text-xs font-bold text-slate-800 tracking-wider">SPLITWISE PRO</span>
+            <span className="text-xs font-bold text-slate-800 tracking-wider">HOMIEPAY PRO</span>
           </div>
           <button 
             onClick={() => {
@@ -149,7 +149,7 @@ export default function Home() {
             <Wallet className="h-5 w-5 text-white stroke-[2.5]" />
           </div>
           <div>
-            <span className="text-sm font-black text-slate-900 tracking-wider uppercase">SplitWise</span>
+            <span className="text-sm font-black text-slate-900 tracking-wider uppercase">HomiePay</span>
             <span className="text-[8px] block text-emerald-600 font-extrabold tracking-widest mt-[-2px] uppercase">PRO EDITION</span>
           </div>
         </div>
@@ -196,7 +196,7 @@ export default function Home() {
             onClick={handleLaunch}
             className="relative group w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider rounded-xl shadow-xl transition-all duration-300 hover:scale-105 cursor-pointer uppercase border border-slate-800"
           >
-            Launch SplitWise
+            Launch HomiePay
             <ArrowRight className="h-4 w-4 stroke-[3] group-hover:translate-x-1 transition-transform text-emerald-400" />
           </button>
         </div>
@@ -207,7 +207,7 @@ export default function Home() {
 
       {/* Minimal Footer */}
       <footer className="relative w-full py-6 flex justify-center items-center z-10 text-[9px] text-slate-400 font-bold tracking-widest uppercase">
-        <span>SplitWise PRO • Zero Math Friction</span>
+        <span>HomiePay PRO • Zero Math Friction</span>
       </footer>
     </div>
   )

@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'SplitWise - Split Expenses with Friends',
+  title: 'HomiePay - Split Expenses with Friends',
   description: 'A modern expense splitting app to split bills between friends easily',
-  generator: 'SplitWise PWA',
+  generator: 'HomiePay PWA',
   manifest: 'manifest.json',
   // iOS requires apple-touch-icon explicitly here - without this iPhone shows a generic letter icon
   icons: {
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'SplitWise',
+    title: 'HomiePay',
     startupImage: 'apple-icon.png',
   },
 }
@@ -65,7 +65,7 @@ export default function RootLayout({
         <link rel="manifest" href="manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="SplitWise" />
+        <meta name="apple-mobile-web-app-title" content="HomiePay" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>

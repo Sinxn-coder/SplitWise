@@ -1,4 +1,4 @@
-// SplitWise Service Worker v6 — Full Offline Support (iOS + Android)
+// HomiePay Service Worker v6 — Full Offline Support (iOS + Android)
 // ─────────────────────────────────────────────────────────────────────────────
 // HOW THIS WORKS:
 //   1. On INSTALL:  pre-cache the root HTML page (the app shell)
@@ -10,7 +10,7 @@
 //      so after ONE online visit the entire app works offline forever.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_NAME = 'splitwise-v6';
+const CACHE_NAME = 'homiepay-v6';
 
 // We only pre-cache the root HTML shell during install.
 // All JS/CSS bundles are cached at runtime on first visit (see fetch handler).
@@ -105,12 +105,12 @@ self.addEventListener('fetch', (event) => {
           return new Response(
             `<!DOCTYPE html><html><head><meta charset="utf-8">
              <meta name="viewport" content="width=device-width,initial-scale=1">
-             <title>SplitWise — Offline</title>
+             <title>HomiePay — Offline</title>
              <style>body{font-family:system-ui,sans-serif;display:flex;flex-direction:column;
              align-items:center;justify-content:center;height:100vh;margin:0;background:#f0fdf4;color:#065f46}
              h1{font-size:1.5rem}p{opacity:.7;font-size:.9rem}</style></head>
              <body><h1>📶 You're offline</h1>
-             <p>Open SplitWise once online to enable offline mode.</p></body></html>`,
+             <p>Open HomiePay once online to enable offline mode.</p></body></html>`,
             { status: 200, headers: { 'Content-Type': 'text/html' } }
           );
         }
