@@ -268,18 +268,25 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     // Async cloud backup to Supabase
     try {
       for (const group of newGroups) {
-        await supabase.from("groups").upsert({
+        // We only upsert the fields we want to update. We do NOT overwrite user_id, 
+        // we let Supabase handle it via RLS or keep the original owner.
+        const { error } = await supabase.from("groups").upsert({
           id: group.id,
-          user_id: userSession.id,
           name: group.name,
           members: group.members,
           color: group.color,
           created_at: new Date(group.createdAt).toISOString(),
-          share_code: group.shareCode
+          share_code: group.shareCode,
+          // We include user_id here but if RLS prevents it, we will see the error.
+          user_id: userSession.id
         })
+        
+        if (error) {
+          console.error(`Supabase failed to backup group ${group.id}:`, error)
+        }
       }
     } catch (err) {
-      console.warn("Supabase failed to backup groups:", err)
+      console.warn("Supabase backup loop error:", err)
     }
   }, [userSession, GROUPS_STORAGE_KEY])
 
