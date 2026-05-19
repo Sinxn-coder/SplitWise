@@ -37,6 +37,7 @@ export interface SavedBill {
   people: Person[]
   products: Product[]
   paidBy: string | null
+  payments?: Record<string, number>
   grandTotal: number
   groupId?: string
   groupName?: string
@@ -98,6 +99,26 @@ export function useExpenseData() {
     return null
   })
 
+  const [payments, setPayments] = useState<Record<string, number>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+          const data: any = JSON.parse(stored)
+          if (data.payments) {
+            return data.payments
+          }
+          if (data.paidBy) {
+            return { [data.paidBy]: 0 }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse stored payments:", e)
+      }
+    }
+    return {}
+  })
+
   const [groups, setGroups] = useState<Group[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -114,16 +135,18 @@ export function useExpenseData() {
 
   const [isLoaded, setIsLoaded] = useState(true)
 
+  const grandTotal = products.reduce((sum, product) => sum + product.price * product.quantity, 0)
+
   // Empty mount effect as states are synchronized immediately
   useEffect(() => {}, [])
 
   // Save to localStorage when active bill data changes
   useEffect(() => {
     if (isLoaded) {
-      const data: ExpenseData = { people, products, paidBy }
+      const data = { people, products, paidBy, payments }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     }
-  }, [people, products, paidBy, isLoaded])
+  }, [people, products, paidBy, payments, isLoaded])
 
   // Save groups helper
   const saveGroupsToStorage = useCallback((newGroups: Group[]) => {
@@ -156,6 +179,11 @@ export function useExpenseData() {
       }))
     )
     setPaidBy((prev) => (prev === id ? null : prev))
+    setPayments((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }, [])
 
   // Product operations
@@ -347,24 +375,80 @@ export function useExpenseData() {
   }, [people, products])
 
   const calculateOwes = useCallback(() => {
-    if (!paidBy) return {}
-    
     const splits = calculateSplits()
-    const owes: Record<string, number> = {}
     
-    people.forEach((person) => {
-      if (person.id !== paidBy && splits[person.id]) {
-        owes[person.id] = splits[person.id].total
+    // Determine paid amount for each person
+    const balances = people.map((person) => {
+      let paid = 0
+      const activePayers = Object.keys(payments).filter(id => (payments[id] || 0) > 0)
+      
+      if (activePayers.length > 0) {
+        paid = payments[person.id] || 0
+      } else if (paidBy === person.id) {
+        paid = grandTotal
+      }
+      
+      const spent = splits[person.id]?.total || 0
+      return {
+        personId: person.id,
+        balance: paid - spent,
       }
     })
+
+    // Separate debtors and creditors
+    const debtors = balances
+      .filter((b) => b.balance < -0.009)
+      .sort((a, b) => a.balance - b.balance)
     
-    return owes
-  }, [paidBy, people, calculateSplits])
+    const creditors = balances
+      .filter((b) => b.balance > 0.009)
+      .sort((a, b) => b.balance - a.balance)
+
+    const transactions: { from: string; to: string; amount: number }[] = []
+
+    let dIdx = 0
+    let cIdx = 0
+
+    // Clone to avoid mutating original values
+    const debtorState = debtors.map(d => ({ ...d }))
+    const creditorState = creditors.map(c => ({ ...c }))
+
+    while (dIdx < debtorState.length && cIdx < creditorState.length) {
+      const debtor = debtorState[dIdx]
+      const creditor = creditorState[cIdx]
+
+      const oweAmount = -debtor.balance
+      const receiveAmount = creditor.balance
+
+      const settleAmount = Math.min(oweAmount, receiveAmount)
+
+      if (settleAmount > 0.009) {
+        transactions.push({
+          from: debtor.personId,
+          to: creditor.personId,
+          amount: settleAmount,
+        })
+      }
+
+      debtor.balance += settleAmount
+      creditor.balance -= settleAmount
+
+      if (Math.abs(debtor.balance) < 0.01) {
+        dIdx++
+      }
+      if (Math.abs(creditor.balance) < 0.01) {
+        cIdx++
+      }
+    }
+
+    return transactions
+  }, [people, payments, paidBy, grandTotal, calculateSplits])
 
   const resetAll = useCallback(() => {
     setPeople([])
     setProducts([])
     setPaidBy(null)
+    setPayments({})
     localStorage.removeItem(STORAGE_KEY)
   }, [])
 
@@ -376,6 +460,7 @@ export function useExpenseData() {
       people: [...people],
       products: [...products],
       paidBy,
+      payments: { ...payments },
       grandTotal: products.reduce((sum, p) => sum + p.price * p.quantity, 0),
     }
 
@@ -412,6 +497,7 @@ export function useExpenseData() {
       setPeople(bill.people)
       setProducts(bill.products)
       setPaidBy(bill.paidBy)
+      setPayments(bill.payments || (bill.paidBy ? { [bill.paidBy]: bill.grandTotal } : {}))
     }
   }, [getSavedBills])
 
@@ -494,10 +580,11 @@ export function useExpenseData() {
       setPeople([...group.members])
       setProducts([])
       setPaidBy(null)
+      setPayments({})
     }
   }, [groups])
 
-  const grandTotal = products.reduce((sum, product) => sum + product.price * product.quantity, 0)
+
 
   return {
     people,
@@ -518,6 +605,8 @@ export function useExpenseData() {
     calculateSplits,
     calculateOwes,
     setPaidBy,
+    payments,
+    setPayments,
     resetAll,
     saveBill,
     getSavedBills,

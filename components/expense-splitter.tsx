@@ -27,6 +27,8 @@ export function ExpenseSplitter() {
     people,
     products,
     paidBy,
+    payments,
+    setPayments,
     groups,
     isLoaded,
     addPerson,
@@ -341,6 +343,9 @@ export function ExpenseSplitter() {
                       people={people}
                       paidBy={paidBy}
                       setPaidBy={setPaidBy}
+                      payments={payments}
+                      setPayments={setPayments}
+                      grandTotal={grandTotal}
                       onBack={() => setCurrentStep(3)}
                       onContinue={() => setCurrentStep(5)}
                     />
@@ -350,6 +355,7 @@ export function ExpenseSplitter() {
                     <FinalCalculationStep
                       people={people}
                       paidBy={paidBy}
+                      payments={payments}
                       calculateSplits={calculateSplits}
                       calculateOwes={calculateOwes}
                       grandTotal={grandTotal}

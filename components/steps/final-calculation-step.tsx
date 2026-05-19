@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback } from "react"
+import { useState, useCallback } from "react"
 import {
   Calculator,
   IndianRupee,
@@ -10,6 +10,8 @@ import {
   Download,
   ArrowRight,
   Save,
+  Loader2,
+  FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,11 +22,12 @@ import autoTable from "jspdf-autotable"
 interface FinalCalculationStepProps {
   people: Person[]
   paidBy: string | null
+  payments: Record<string, number>
   calculateSplits: () => Record<
     string,
     { items: { name: string; amount: number; quantity: number }[]; total: number }
   >
-  calculateOwes: () => Record<string, number>
+  calculateOwes: () => { from: string; to: string; amount: number }[]
   grandTotal: number
   onBack: () => void
   onReset: () => void
@@ -34,6 +37,7 @@ interface FinalCalculationStepProps {
 export function FinalCalculationStep({
   people,
   paidBy,
+  payments,
   calculateSplits,
   calculateOwes,
   grandTotal,
@@ -43,47 +47,15 @@ export function FinalCalculationStep({
 }: FinalCalculationStepProps) {
   const splits = calculateSplits()
   const owes = calculateOwes()
+  
+  const [isSharingPDF, setIsSharingPDF] = useState(false)
 
-  const payer = people.find((p) => p.id === paidBy)
+  // Find single payer if applicable for display compatibility
+  const activePayers = Object.entries(payments).filter(([, amt]) => amt > 0)
+  const singlePayerId = activePayers.length === 1 ? activePayers[0][0] : paidBy
+  const payer = people.find((p) => p.id === singlePayerId)
 
-  const generateShareText = useCallback(() => {
-    let text = `*Bill Split Summary*\n`
-    text += `━━━━━━━━━━━━━━━━━\n`
-    text += `*Grand Total:* Rs.${grandTotal.toFixed(2)}\n`
-    if (payer) {
-      text += `*Paid by:* ${payer.name}\n`
-    }
-    text += `\n`
-
-    people.forEach((person) => {
-      const personSplit = splits[person.id]
-      if (personSplit && personSplit.items.length > 0) {
-        text += `*${person.name}:*\n`
-        personSplit.items.forEach((item) => {
-          const qtyText = item.quantity > 1 ? ` (x${item.quantity})` : ""
-          text += `  • ${item.name}${qtyText}: Rs.${item.amount.toFixed(2)}\n`
-        })
-        text += `  *Total: Rs.${personSplit.total.toFixed(2)}*\n`
-        if (payer && person.id !== paidBy && owes[person.id]) {
-          text += `  ➜ Owes ${payer.name}: Rs.${owes[person.id].toFixed(2)}\n`
-        }
-        text += `\n`
-      }
-    })
-
-    if (payer && Object.keys(owes).length > 0) {
-      text += `*Settlement:*\n`
-      Object.entries(owes).forEach(([personId, amount]) => {
-        const person = people.find((p) => p.id === personId)
-        if (person && amount > 0) {
-          text += `${person.name} ➜ ${payer.name}: Rs.${amount.toFixed(2)}\n`
-        }
-      })
-    }
-
-    return text
-  }, [grandTotal, owes, payer, paidBy, people, splits])
-
+  // PDF Generator Callback
   const generatePDF = useCallback(() => {
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
@@ -123,7 +95,12 @@ export function FinalCalculationStep({
     doc.setFontSize(12)
     doc.setFont("helvetica", "normal")
     doc.text("Grand Total", 20, 60)
-    if (payer) {
+    
+    const activePayersList = people.filter((p) => (payments[p.id] || 0) > 0)
+    if (activePayersList.length > 1) {
+      doc.setFontSize(8)
+      doc.text(`Paid by: ${activePayersList.map(p => `${p.name} (Rs.${payments[p.id].toFixed(2)})`).join(", ")}`, 20, 68)
+    } else if (payer) {
       doc.setFontSize(9)
       doc.text(`Paid by: ${payer.name}`, 20, 68)
     }
@@ -134,18 +111,19 @@ export function FinalCalculationStep({
     let yPos = 85
     
     // Settlement Summary
-    if (payer && Object.keys(owes).length > 0) {
+    if (owes.length > 0) {
       doc.setFontSize(14)
       doc.setFont("helvetica", "bold")
       doc.setTextColor(...darkBg)
       doc.text("Settlement Summary", 14, yPos)
       yPos += 5
       
-      const settlementData = Object.entries(owes)
-        .filter(([, amount]) => amount > 0)
-        .map(([personId, amount]) => {
-          const person = people.find((p) => p.id === personId)
-          return [person?.name || "", "→", payer.name, `Rs. ${amount.toFixed(2)}`]
+      const settlementData = owes
+        .filter((t) => t.amount > 0)
+        .map((t) => {
+          const fromPerson = people.find((p) => p.id === t.from)
+          const toPerson = people.find((p) => p.id === t.to)
+          return [fromPerson?.name || "", "→", toPerson?.name || "", `Rs. ${t.amount.toFixed(2)}`]
         })
       
       if (settlementData.length > 0) {
@@ -189,8 +167,8 @@ export function FinalCalculationStep({
     people.forEach((person) => {
       const personSplit = splits[person.id]
       if (personSplit && personSplit.items.length > 0) {
-        const isPayer = person.id === paidBy
-        const personName = isPayer ? `${person.name} (Paid)` : person.name
+        const isPersonPayer = (payments[person.id] || 0) > 0
+        const personName = isPersonPayer ? `${person.name} (Paid)` : person.name
         
         personSplit.items.forEach((item, idx) => {
           const qtyText = item.quantity > 1 ? ` (x${item.quantity})` : ""
@@ -202,7 +180,6 @@ export function FinalCalculationStep({
           ])
         })
         
-        // Add separator row if not last person
         if (people.indexOf(person) < people.length - 1) {
           breakdownData.push(["", "", "", ""])
         }
@@ -233,8 +210,8 @@ export function FinalCalculationStep({
       },
       margin: { left: 14, right: 14 },
       didParseCell: (data) => {
-        // Highlight payer rows
-        if (data.section === "body" && data.row.raw && String(data.row.raw[0]).includes("(Paid)")) {
+        const raw = data.row.raw
+        if (data.section === "body" && Array.isArray(raw) && String(raw[0]).includes("(Paid)")) {
           data.cell.styles.fillColor = [204, 251, 241]
         }
       },
@@ -247,22 +224,115 @@ export function FinalCalculationStep({
     doc.text("Generated by SplitWise App", pageWidth / 2, finalY, { align: "center" })
     
     return doc
-  }, [grandTotal, owes, payer, paidBy, people, splits])
+  }, [grandTotal, owes, payer, people, splits, payments])
+
+  // Fallback WhatsApp Text Generator
+  const generateShareText = useCallback(() => {
+    let text = `*Bill Split Summary*\n`
+    text += `━━━━━━━━━━━━━━━━━\n`
+    text += `*Grand Total:* Rs.${grandTotal.toFixed(2)}\n`
+    
+    const activePayersList = people.filter((p) => (payments[p.id] || 0) > 0)
+    if (activePayersList.length > 1) {
+      text += `*Paid by:*\n`
+      activePayersList.forEach((p) => {
+        text += `  • ${p.name}: Rs.${payments[p.id].toFixed(2)}\n`
+      })
+    } else if (payer) {
+      text += `*Paid by:* ${payer.name}\n`
+    }
+    text += `\n`
+
+    people.forEach((person) => {
+      const personSplit = splits[person.id]
+      if (personSplit && personSplit.items.length > 0) {
+        text += `*${person.name}:*\n`
+        personSplit.items.forEach((item) => {
+          const qtyText = item.quantity > 1 ? ` (x${item.quantity})` : ""
+          text += `  • ${item.name}${qtyText}: Rs.${item.amount.toFixed(2)}\n`
+        })
+        text += `  *Total: Rs.${personSplit.total.toFixed(2)}*\n`
+        text += `\n`
+      }
+    })
+
+    if (owes.length > 0) {
+      text += `*Settlement:*\n`
+      owes.forEach((transaction) => {
+        const fromPerson = people.find((p) => p.id === transaction.from)
+        const toPerson = people.find((p) => p.id === transaction.to)
+        if (fromPerson && toPerson && transaction.amount > 0) {
+          text += `${fromPerson.name} ➜ ${toPerson.name}: Rs.${transaction.amount.toFixed(2)}\n`
+        }
+      })
+    }
+
+    return text
+  }, [grandTotal, owes, payer, people, splits, payments])
+
+  const triggerWhatsAppTextOnly = useCallback(() => {
+    const text = generateShareText()
+    const encoded = encodeURIComponent(text)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    
+    if (isMobile) {
+      window.location.href = `whatsapp://send?text=${encoded}`
+    } else {
+      window.open(`https://web.whatsapp.com/send?text=${encoded}`, "_blank")
+    }
+  }, [generateShareText])
+
+  // NEW: Share PDF directly to WhatsApp / Native Share Sheet
+  const handleSharePDFToWhatsApp = async () => {
+    setIsSharingPDF(true)
+    try {
+      const doc = generatePDF()
+      const pdfBlob = doc.output("blob")
+      const fileName = `bill-split-${new Date().toISOString().split("T")[0]}.pdf`
+      const file = new File([pdfBlob], fileName, { type: "application/pdf" })
+
+      // Check if native navigator.share supports sharing documents/files
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "SplitWise PDF Report",
+          text: `SplitWise bill split report for Rs. ${grandTotal.toFixed(2)}`,
+        })
+      } else {
+        // Desktop Fallback: Download the PDF report automatically and redirect to WhatsApp Web
+        const pdfUrl = URL.createObjectURL(pdfBlob)
+        const link = document.createElement("a")
+        link.href = pdfUrl
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(pdfUrl)
+
+        alert("📥 PDF Report downloaded successfully!\n\nWe will now open WhatsApp for you. You can easily drag & drop or attach the downloaded PDF file directly in the chat window!")
+
+        const textMessage = encodeURIComponent(`*SplitWise PDF Split Summary*\nGrand Total: Rs. ${grandTotal.toFixed(2)}\n(I have generated and downloaded our PDF report - attaching it below!)`)
+        window.open(`https://web.whatsapp.com/send?text=${textMessage}`, "_blank")
+      }
+    } catch (err) {
+      console.error("PDF sharing failed:", err)
+      triggerWhatsAppTextOnly()
+    } finally {
+      setIsSharingPDF(false)
+    }
+  }
 
   const handleDownloadPDF = useCallback(() => {
     const doc = generatePDF()
     const pdfBlob = doc.output("blob")
     const pdfUrl = URL.createObjectURL(pdfBlob)
     
-    // Check if iOS Safari
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
     
     if (isIOS || isSafari) {
-      // For iOS Safari, open in new tab - user can then share/save from there
       const newWindow = window.open(pdfUrl, "_blank")
       if (!newWindow) {
-        // If popup blocked, create a temporary link and trigger click
         const link = document.createElement("a")
         link.href = pdfUrl
         link.target = "_blank"
@@ -271,10 +341,8 @@ export function FinalCalculationStep({
         link.click()
         document.body.removeChild(link)
       }
-      // Clean up URL after a delay to allow the new tab to load
       setTimeout(() => URL.revokeObjectURL(pdfUrl), 10000)
     } else {
-      // For other browsers, use download attribute
       const link = document.createElement("a")
       link.href = pdfUrl
       link.download = `bill-split-${new Date().toISOString().split("T")[0]}.pdf`
@@ -285,29 +353,13 @@ export function FinalCalculationStep({
     }
   }, [generatePDF])
 
-  const handleShareWhatsApp = useCallback(() => {
-    const text = generateShareText()
-    const encoded = encodeURIComponent(text)
-    // Use api.whatsapp.com for better mobile compatibility
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-    
-    if (isMobile) {
-      // On mobile, use the native WhatsApp URL scheme
-      window.location.href = `whatsapp://send?text=${encoded}`
-    } else {
-      // On desktop, use web.whatsapp.com
-      window.open(`https://web.whatsapp.com/send?text=${encoded}`, "_blank")
-    }
-  }, [generateShareText])
-
   const handleSaveAndReset = () => {
     onSaveBill()
     onReset()
   }
 
   return (
-    <Card className="border-border/50 shadow-lg">
+    <Card className="border-border/50 shadow-lg relative">
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-xl">
           <Calculator className="h-5 w-5 text-primary" />
@@ -317,17 +369,22 @@ export function FinalCalculationStep({
           Here&apos;s how much each person owes
         </p>
       </CardHeader>
+      
       <CardContent className="space-y-4">
         {/* Grand Total Card */}
         <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
           <div className="flex items-center justify-between">
             <div>
               <span className="text-sm font-medium text-muted-foreground">Grand Total</span>
-              {payer && (
+              {activePayers.length > 1 ? (
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Paid by <span className="font-semibold text-foreground">{activePayers.map(([id, val]) => `${people.find(p => p.id === id)?.name} (Rs.${val.toFixed(2)})`).join(", ")}</span>
+                </p>
+              ) : payer ? (
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Paid by <span className="font-medium text-foreground">{payer.name}</span>
                 </p>
-              )}
+              ) : null}
             </div>
             <span className="flex items-center text-2xl font-bold text-primary">
               <IndianRupee className="h-5 w-5" />
@@ -337,36 +394,37 @@ export function FinalCalculationStep({
         </div>
 
         {/* Who Owes Who Section */}
-        {payer && Object.keys(owes).length > 0 && (
+        {owes.length > 0 && (
           <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
             <h4 className="text-sm font-semibold text-muted-foreground">Settlement Summary</h4>
             <div className="space-y-2">
-              {Object.entries(owes).map(([personId, amount]) => {
-                const person = people.find((p) => p.id === personId)
-                if (!person || amount === 0) return null
+              {owes.map((transaction, index) => {
+                const fromPerson = people.find((p) => p.id === transaction.from)
+                const toPerson = people.find((p) => p.id === transaction.to)
+                if (!fromPerson || !toPerson || transaction.amount === 0) return null
                 return (
                   <div
-                    key={personId}
+                    key={index}
                     className="flex items-center justify-between p-3 rounded-lg bg-background border border-border"
                   >
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                         <span className="text-xs font-semibold">
-                          {person.name.charAt(0).toUpperCase()}
+                          {fromPerson.name.charAt(0).toUpperCase()}
                         </span>
                       </div>
-                      <span className="font-medium">{person.name}</span>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{fromPerson.name}</span>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground animate-pulse" />
                       <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                         <span className="text-xs font-semibold text-primary">
-                          {payer.name.charAt(0).toUpperCase()}
+                          {toPerson.name.charAt(0).toUpperCase()}
                         </span>
                       </div>
-                      <span className="font-medium text-primary">{payer.name}</span>
+                      <span className="font-medium text-primary">{toPerson.name}</span>
                     </div>
                     <span className="flex items-center font-bold text-primary">
                       <IndianRupee className="h-4 w-4" />
-                      {amount.toFixed(2)}
+                      {transaction.amount.toFixed(2)}
                     </span>
                   </div>
                 )
@@ -381,7 +439,8 @@ export function FinalCalculationStep({
             const personSplit = splits[person.id]
             if (!personSplit || personSplit.items.length === 0) return null
 
-            const isPayer = person.id === paidBy
+            const paidAmount = payments[person.id] || 0
+            const isPayer = paidAmount > 0
 
             return (
               <div
@@ -407,7 +466,9 @@ export function FinalCalculationStep({
                     <div>
                       <h3 className="font-semibold">{person.name}</h3>
                       {isPayer && (
-                        <span className="text-xs text-primary font-medium">Paid the bill</span>
+                        <span className="text-xs text-primary font-medium">
+                          Paid Rs. {paidAmount.toFixed(2)}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -453,18 +514,42 @@ export function FinalCalculationStep({
         )}
 
         {/* Share Buttons */}
-        <div className="flex flex-wrap gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={handleShareWhatsApp} className="flex-1">
-            <Share2 className="h-4 w-4 mr-2" />
-            WhatsApp
+        <div className="flex flex-col sm:flex-row gap-2 pt-2">
+          <Button 
+            variant="default" 
+            onClick={handleSharePDFToWhatsApp} 
+            disabled={isSharingPDF}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center justify-center gap-2"
+          >
+            {isSharingPDF ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Generating PDF...
+              </>
+            ) : (
+              <>
+                <Share2 className="h-4 w-4" />
+                Share PDF to WhatsApp
+              </>
+            )}
           </Button>
-          <Button variant="outline" size="sm" onClick={handleDownloadPDF} className="flex-1">
-            <Download className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={handleDownloadPDF} className="sm:w-44 flex items-center justify-center gap-2 font-semibold">
+            <Download className="h-4 w-4" />
             Download PDF
           </Button>
         </div>
 
-        <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-between">
+        {/* Fallback option for text split sharing */}
+        <div className="text-center pt-1">
+          <button 
+            onClick={triggerWhatsAppTextOnly}
+            className="text-[10px] text-muted-foreground hover:text-primary transition-all underline cursor-pointer"
+          >
+            Or share standard text-only split summary
+          </button>
+        </div>
+
+        <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-between border-t border-border/40">
           <Button variant="outline" onClick={onBack}>
             Back
           </Button>

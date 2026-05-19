@@ -45,9 +45,22 @@ export function SavedBills({ bills, onLoadBill, onDeleteBill }: SavedBillsProps)
       </CardHeader>
       <CardContent className="space-y-2">
         {bills.map((bill, index) => {
-          const payer = bill.paidBy
-            ? bill.people.find((p) => p.id === bill.paidBy)
-            : null
+          const payersCount = bill.payments ? Object.keys(bill.payments).filter(id => (bill.payments?.[id] || 0) > 0).length : 0
+          let payerText = ""
+          if (payersCount > 1) {
+            payerText = `Paid by ${payersCount} people`
+          } else if (bill.paidBy) {
+            const singlePayer = bill.people.find((p) => p.id === bill.paidBy)
+            if (singlePayer) {
+              payerText = `Paid by ${singlePayer.name}`
+            }
+          } else if (bill.payments) {
+            const solePayerId = Object.keys(bill.payments).find(id => (bill.payments?.[id] || 0) > 0)
+            const solePayer = solePayerId ? bill.people.find(p => p.id === solePayerId) : null
+            if (solePayer) {
+              payerText = `Paid by ${solePayer.name}`
+            }
+          }
 
           return (
             <div
@@ -77,10 +90,10 @@ export function SavedBills({ bills, onLoadBill, onDeleteBill }: SavedBillsProps)
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                         <span>{formatDate(bill.createdAt)}</span>
-                        {payer && (
+                        {payerText && (
                           <>
                             <span>•</span>
-                            <span className="truncate">Paid by {payer.name}</span>
+                            <span className="truncate">{payerText}</span>
                           </>
                         )}
                       </div>
