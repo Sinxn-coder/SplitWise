@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { Wallet, ArrowRight, Sparkles } from "lucide-react"
 
@@ -11,14 +11,25 @@ const ExpenseSplitter = dynamic(
 )
 
 export default function Home() {
+  const [mounted, setMounted] = useState(false)
   const [isStarted, setIsStarted] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
+
+  // Hydration guard to ensure client and server render match perfectly
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleLaunch = () => {
     setIsExiting(true)
     setTimeout(() => {
       setIsStarted(true)
     }, 600) // matches transition duration
+  }
+
+  // Pre-hydration rendering shell in light theme background
+  if (!mounted) {
+    return <div className="min-h-screen bg-slate-50" />
   }
 
   if (isStarted) {
@@ -56,8 +67,8 @@ export default function Home() {
       }`}
       style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
     >
-      {/* Dynamic Keyframe Injection */}
-      <style jsx global>{`
+      {/* React 19 Standard Stylesheet Injection */}
+      <style>{`
         @keyframes float {
           0%, 100% { transform: translateY(0px) rotate(0deg); }
           50% { transform: translateY(-8px) rotate(0.5deg); }
