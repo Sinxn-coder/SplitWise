@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { supabase } from "../lib/supabase"
 
 export interface Person {
   id: string
@@ -133,12 +134,114 @@ export function useExpenseData() {
     return []
   })
 
+  const [savedBills, setSavedBills] = useState<SavedBill[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedBills = localStorage.getItem(BILLS_STORAGE_KEY)
+        if (storedBills) {
+          return JSON.parse(storedBills)
+        }
+      } catch (e) {
+        console.error("Failed to parse stored bills:", e)
+      }
+    }
+    return []
+  })
+
   const [isLoaded, setIsLoaded] = useState(true)
 
   const grandTotal = products.reduce((sum, product) => sum + product.price * product.quantity, 0)
 
-  // Empty mount effect as states are synchronized immediately
-  useEffect(() => {}, [])
+  // Fetch from Supabase and synchronize/merge on mount
+  useEffect(() => {
+    async function loadAndSyncFromSupabase() {
+      try {
+        // 1. Sync Bills
+        const { data: supabaseBills, error: billsErr } = await supabase
+          .from("bills")
+          .select("*")
+          .order("created_at", { ascending: false })
+
+        if (!billsErr && supabaseBills) {
+          const formattedBills: SavedBill[] = supabaseBills.map((b: any) => ({
+            id: b.id,
+            createdAt: new Date(b.created_at).getTime(),
+            people: b.people,
+            products: b.products,
+            paidBy: b.paid_by,
+            payments: b.payments,
+            grandTotal: b.grand_total,
+            groupId: b.group_id,
+            groupName: b.group_name
+          }))
+
+          // Merge local bills and Supabase bills, picking newest version on conflicts
+          const localStored = localStorage.getItem(BILLS_STORAGE_KEY)
+          const localBills: SavedBill[] = localStored ? JSON.parse(localStored) : []
+          const billsMap = new Map<string, SavedBill>()
+
+          localBills.forEach(b => billsMap.set(b.id, b))
+          formattedBills.forEach(b => {
+            if (billsMap.has(b.id)) {
+              const existing = billsMap.get(b.id)!
+              if (b.createdAt > existing.createdAt) {
+                billsMap.set(b.id, b)
+              }
+            } else {
+              billsMap.set(b.id, b)
+            }
+          })
+
+          const mergedBills = Array.from(billsMap.values()).sort((a, b) => b.createdAt - a.createdAt)
+          localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(mergedBills))
+          setSavedBills(mergedBills)
+        }
+
+        // 2. Sync Groups
+        const { data: supabaseGroups, error: groupsErr } = await supabase
+          .from("groups")
+          .select("*")
+          .order("created_at", { ascending: false })
+
+        if (!groupsErr && supabaseGroups) {
+          const formattedGroups: Group[] = supabaseGroups.map((g: any) => ({
+            id: g.id,
+            name: g.name,
+            members: g.members,
+            color: g.color,
+            createdAt: new Date(g.created_at).getTime()
+          }))
+
+          // Merge local groups and Supabase groups, picking newest version on conflicts
+          const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
+          const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
+          const groupsMap = new Map<string, Group>()
+
+          localGroups.forEach(g => groupsMap.set(g.id, g))
+          formattedGroups.forEach(g => {
+            if (groupsMap.has(g.id)) {
+              const existing = groupsMap.get(g.id)!
+              if (g.createdAt > existing.createdAt) {
+                groupsMap.set(g.id, g)
+              }
+            } else {
+              groupsMap.set(g.id, g)
+            }
+          })
+
+          const mergedGroups = Array.from(groupsMap.values()).sort((a, b) => b.createdAt - a.createdAt)
+          localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(mergedGroups))
+          setGroups(mergedGroups)
+        }
+      } catch (err) {
+        console.warn("Supabase background sync paused. Fallback to Local Storage:", err)
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      loadAndSyncFromSupabase()
+    }
+  }, [])
 
   // Save to localStorage when active bill data changes
   useEffect(() => {
@@ -149,9 +252,24 @@ export function useExpenseData() {
   }, [people, products, paidBy, payments, isLoaded])
 
   // Save groups helper
-  const saveGroupsToStorage = useCallback((newGroups: Group[]) => {
+  const saveGroupsToStorage = useCallback(async (newGroups: Group[]) => {
     setGroups(newGroups)
     localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(newGroups))
+
+    // Async cloud backup to Supabase
+    try {
+      for (const group of newGroups) {
+        await supabase.from("groups").upsert({
+          id: group.id,
+          name: group.name,
+          members: group.members,
+          color: group.color,
+          created_at: new Date(group.createdAt).toISOString()
+        })
+      }
+    } catch (err) {
+      console.warn("Supabase failed to backup groups:", err)
+    }
   }, [])
 
   // Person operations
@@ -200,174 +318,133 @@ export function useExpenseData() {
     setProducts((prev) => [...prev, newProduct])
   }, [])
 
-  const updateProduct = useCallback(
-    (id: string, updates: Partial<Omit<Product, "id">>) => {
-      setProducts((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
-      )
-    },
-    []
-  )
+  const updateProduct = useCallback((id: string, updates: Partial<Omit<Product, "id">>) => {
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)))
+  }, [])
 
   const removeProduct = useCallback((id: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== id))
   }, [])
 
-  const togglePersonForProduct = useCallback(
-    (productId: string, personId: string) => {
-      setProducts((prev) =>
-        prev.map((product) => {
-          if (product.id !== productId) return product
-          const isAssigned = product.assignedTo.includes(personId)
-          const newAssignedTo = isAssigned
-            ? product.assignedTo.filter((id) => id !== personId)
-            : [...product.assignedTo, personId]
-          
-          let newPercentages = product.percentages
-          if (isAssigned) {
-            newPercentages = product.percentages.filter((p) => p.personId !== personId)
-          } else {
-            // Initialize count/shares to 1 when a person is assigned
-            newPercentages = [
-              ...product.percentages.filter((p) => p.personId !== personId),
-              { personId, percentage: 1 }
-            ]
-          }
-
-          return {
-            ...product,
-            assignedTo: newAssignedTo,
-            percentages: newPercentages,
-          }
-        })
-      )
-    },
-    []
-  )
-
-  const assignAllPeopleToProduct = useCallback(
-    (productId: string) => {
-      setProducts((prev) =>
-        prev.map((product) => {
-          if (product.id !== productId) return product
-          return {
-            ...product,
-            assignedTo: people.map((p) => p.id),
-            percentages: people.map((p) => ({
-              personId: p.id,
-              percentage: 1, // initialize count to 1 for everyone
-            })),
-          }
-        })
-      )
-    },
-    [people]
-  )
-
-  const toggleSplitByPercentage = useCallback((productId: string) => {
+  const togglePersonForProduct = useCallback((productId: string, personId: string) => {
     setProducts((prev) =>
       prev.map((product) => {
         if (product.id !== productId) return product
-        // When toggling to custom split, initialize all assigned people with count 1
-        const initializedPercentages = product.percentages.length > 0 
-          ? product.percentages 
-          : product.assignedTo.map((pid) => ({ personId: pid, percentage: 1 }))
+
+        const hasAssignment = product.assignedTo.includes(personId)
+        let nextAssigned: string[]
+        let nextPercentages = [...product.percentages]
+
+        if (hasAssignment) {
+          nextAssigned = product.assignedTo.filter((id) => id !== personId)
+          nextPercentages = nextPercentages.filter((p) => p.personId !== personId)
+        } else {
+          nextAssigned = [...product.assignedTo, personId]
+          nextPercentages.push({ personId, percentage: 1 })
+        }
+
         return {
           ...product,
-          splitByPercentage: !product.splitByPercentage,
-          percentages: initializedPercentages
+          assignedTo: nextAssigned,
+          percentages: nextPercentages,
         }
       })
     )
   }, [])
 
-  const updateProductPercentage = useCallback(
-    (productId: string, personId: string, count: number) => {
-      setProducts((prev) =>
-        prev.map((product) => {
-          if (product.id !== productId) return product
-          const exists = product.percentages.some((p) => p.personId === personId)
-          let newPercentages
-          if (exists) {
-            newPercentages = product.percentages.map((p) =>
-              p.personId === personId ? { ...p, percentage: count } : p
-            )
-          } else {
-            newPercentages = [...product.percentages, { personId, percentage: count }]
-          }
+  const assignAllPeopleToProduct = useCallback((productId: string) => {
+    setProducts((prev) =>
+      prev.map((product) => {
+        if (product.id !== productId) return product
+
+        const allAssigned = people.every((p) => product.assignedTo.includes(p.id))
+        if (allAssigned) {
           return {
             ...product,
-            percentages: newPercentages,
+            assignedTo: [],
+            percentages: [],
           }
-        })
-      )
-    },
-    []
-  )
+        } else {
+          return {
+            ...product,
+            assignedTo: people.map((p) => p.id),
+            percentages: people.map((p) => ({ personId: p.id, percentage: 1 })),
+          }
+        }
+      })
+    )
+  }, [people])
 
-  // Math Calculations (Proportional Split by Count)
+  const toggleSplitByPercentage = useCallback((productId: string) => {
+    setProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, splitByPercentage: !p.splitByPercentage } : p))
+    )
+  }, [])
+
+  const updateProductPercentage = useCallback((productId: string, personId: string, percentage: number) => {
+    setProducts((prev) =>
+      prev.map((product) => {
+        if (product.id !== productId) return product
+
+        const percentages = product.percentages.map((p) =>
+          p.personId === personId ? { ...p, percentage } : p
+        )
+
+        return {
+          ...product,
+          percentages,
+        }
+      })
+    )
+  }, [])
+
   const calculateSplits = useCallback(() => {
     const splits: Record<
       string,
       { items: { name: string; amount: number; quantity: number }[]; total: number }
     > = {}
 
-    // Initialize splits for all people
-    people.forEach((person) => {
-      splits[person.id] = { items: [], total: 0 }
+    people.forEach((p) => {
+      splits[p.id] = { items: [], total: 0 }
     })
 
-    // Calculate splits for each product
     products.forEach((product) => {
-      if (product.assignedTo.length > 0) {
-        const totalProductCost = product.price * product.quantity
+      if (product.assignedTo.length === 0) return
 
-        if (product.splitByPercentage && product.percentages.length > 0) {
-          // Split by custom count (shares)
-          const totalShares = product.percentages
-            .filter((p) => product.assignedTo.includes(p.personId))
-            .reduce((sum, p) => sum + p.percentage, 0)
-          
-          if (totalShares > 0) {
-            product.percentages.forEach((assignment) => {
-              if (product.assignedTo.includes(assignment.personId) && splits[assignment.personId]) {
-                const amount = (totalProductCost * assignment.percentage) / totalShares
-                splits[assignment.personId].items.push({
-                  name: product.name,
-                  amount,
-                  quantity: product.quantity,
-                })
-                splits[assignment.personId].total += amount
-              }
-            })
-          } else {
-            // Fallback to equal split if all counts are 0
-            const splitAmount = totalProductCost / product.assignedTo.length
-            product.assignedTo.forEach((personId) => {
-              if (splits[personId]) {
-                splits[personId].items.push({
-                  name: product.name,
-                  amount: splitAmount,
-                  quantity: product.quantity,
-                })
-                splits[personId].total += splitAmount
-              }
-            })
-          }
-        } else {
-          // Equal split
-          const splitAmount = totalProductCost / product.assignedTo.length
+      if (product.splitByPercentage) {
+        const totalPercentages = product.percentages.reduce(
+          (sum, p) => (product.assignedTo.includes(p.personId) ? sum + p.percentage : sum),
+          0
+        )
+
+        if (totalPercentages > 0) {
           product.assignedTo.forEach((personId) => {
-            if (splits[personId]) {
+            const assignment = product.percentages.find((p) => p.personId === personId)
+            const share = assignment ? assignment.percentage / totalPercentages : 0
+            const itemCost = product.price * product.quantity * share
+
+            if (splits[personId] && itemCost > 0) {
               splits[personId].items.push({
                 name: product.name,
-                amount: splitAmount,
-                quantity: product.quantity,
+                amount: itemCost,
+                quantity: product.quantity * share,
               })
-              splits[personId].total += splitAmount
+              splits[personId].total += itemCost
             }
           })
         }
+      } else {
+        const costPerPerson = (product.price * product.quantity) / product.assignedTo.length
+        product.assignedTo.forEach((personId) => {
+          if (splits[personId]) {
+            splits[personId].items.push({
+              name: product.name,
+              amount: costPerPerson,
+              quantity: product.quantity / product.assignedTo.length,
+            })
+            splits[personId].total += costPerPerson
+          }
+        })
       }
     })
 
@@ -376,56 +453,35 @@ export function useExpenseData() {
 
   const calculateOwes = useCallback(() => {
     const splits = calculateSplits()
-    
-    // Determine paid amount for each person
     const balances = people.map((person) => {
-      let paid = 0
-      const activePayers = Object.keys(payments).filter(id => (payments[id] || 0) > 0)
-      
-      if (activePayers.length > 0) {
-        paid = payments[person.id] || 0
-      } else if (paidBy === person.id) {
-        paid = grandTotal
-      }
-      
       const spent = splits[person.id]?.total || 0
+      const paid = payments[person.id] || 0
       return {
-        personId: person.id,
+        id: person.id,
+        name: person.name,
         balance: paid - spent,
       }
     })
 
-    // Separate debtors and creditors
-    const debtors = balances
-      .filter((b) => b.balance < -0.009)
-      .sort((a, b) => a.balance - b.balance)
-    
-    const creditors = balances
-      .filter((b) => b.balance > 0.009)
-      .sort((a, b) => b.balance - a.balance)
+    const debtors = balances.filter((b) => b.balance < -0.01).sort((a, b) => a.balance - b.balance)
+    const creditors = balances.filter((b) => b.balance > 0.01).sort((a, b) => b.balance - a.balance)
 
     const transactions: { from: string; to: string; amount: number }[] = []
-
     let dIdx = 0
     let cIdx = 0
 
-    // Clone to avoid mutating original values
-    const debtorState = debtors.map(d => ({ ...d }))
-    const creditorState = creditors.map(c => ({ ...c }))
+    while (dIdx < debtors.length && cIdx < creditors.length) {
+      const debtor = debtors[dIdx]
+      const creditor = creditors[cIdx]
 
-    while (dIdx < debtorState.length && cIdx < creditorState.length) {
-      const debtor = debtorState[dIdx]
-      const creditor = creditorState[cIdx]
+      const owesAmount = Math.abs(debtor.balance)
+      const creditAmount = creditor.balance
+      const settleAmount = Math.min(owesAmount, creditAmount)
 
-      const oweAmount = -debtor.balance
-      const receiveAmount = creditor.balance
-
-      const settleAmount = Math.min(oweAmount, receiveAmount)
-
-      if (settleAmount > 0.009) {
+      if (settleAmount > 0.01) {
         transactions.push({
-          from: debtor.personId,
-          to: creditor.personId,
+          from: debtor.id,
+          to: creditor.id,
           amount: settleAmount,
         })
       }
@@ -453,7 +509,7 @@ export function useExpenseData() {
   }, [])
 
   // Bill History Operations (Saved Forever)
-  const saveBill = useCallback(() => {
+  const saveBill = useCallback(async () => {
     const bill: SavedBill = {
       id: crypto.randomUUID(),
       createdAt: Date.now(),
@@ -464,6 +520,7 @@ export function useExpenseData() {
       grandTotal: products.reduce((sum, p) => sum + p.price * p.quantity, 0),
     }
 
+    // 1. Save to Local Storage
     const stored = localStorage.getItem(BILLS_STORAGE_KEY)
     let bills: SavedBill[] = []
     if (stored) {
@@ -473,39 +530,57 @@ export function useExpenseData() {
         console.error("Failed to parse saved bills:", e)
       }
     }
-
     bills.unshift(bill)
     localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(bills))
+    setSavedBills(bills)
+
+    // 2. Cloud Backup to Supabase
+    try {
+      await supabase.from("bills").upsert({
+        id: bill.id,
+        created_at: new Date(bill.createdAt).toISOString(),
+        people: bill.people,
+        products: bill.products,
+        paid_by: bill.paidBy,
+        payments: bill.payments,
+        grand_total: bill.grandTotal,
+        group_id: bill.groupId,
+        group_name: bill.groupName
+      })
+    } catch (err) {
+      console.warn("Supabase failed to backup bill split:", err)
+    }
+
     return bill.id
-  }, [people, products, paidBy])
+  }, [people, products, paidBy, payments])
 
   const getSavedBills = useCallback((): SavedBill[] => {
-    const stored = localStorage.getItem(BILLS_STORAGE_KEY)
-    if (!stored) return []
-    try {
-      return JSON.parse(stored)
-    } catch (e) {
-      console.error("Failed to parse saved bills:", e)
-      return []
-    }
-  }, [])
+    return savedBills
+  }, [savedBills])
 
   const loadBill = useCallback((billId: string) => {
-    const bills = getSavedBills()
-    const bill = bills.find((b) => b.id === billId)
+    const bill = savedBills.find((b) => b.id === billId)
     if (bill) {
       setPeople(bill.people)
       setProducts(bill.products)
       setPaidBy(bill.paidBy)
       setPayments(bill.payments || (bill.paidBy ? { [bill.paidBy]: bill.grandTotal } : {}))
     }
-  }, [getSavedBills])
+  }, [savedBills])
 
-  const deleteSavedBill = useCallback((billId: string) => {
-    const bills = getSavedBills()
-    const filtered = bills.filter((b) => b.id !== billId)
+  const deleteSavedBill = useCallback(async (billId: string) => {
+    // 1. Delete from Local Storage
+    const filtered = savedBills.filter((b) => b.id !== billId)
     localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(filtered))
-  }, [getSavedBills])
+    setSavedBills(filtered)
+
+    // 2. Delete from Supabase
+    try {
+      await supabase.from("bills").delete().eq("id", billId)
+    } catch (err) {
+      console.warn("Supabase failed to delete bill:", err)
+    }
+  }, [savedBills])
 
   // Group Operations
   const addGroup = useCallback((name: string) => {
@@ -531,9 +606,16 @@ export function useExpenseData() {
     saveGroupsToStorage(updated)
   }, [groups, saveGroupsToStorage])
 
-  const deleteGroup = useCallback((id: string) => {
+  const deleteGroup = useCallback(async (id: string) => {
     const updated = groups.filter((g) => g.id !== id)
     saveGroupsToStorage(updated)
+
+    // Delete from Supabase
+    try {
+      await supabase.from("groups").delete().eq("id", id)
+    } catch (err) {
+      console.warn("Supabase failed to delete group:", err)
+    }
   }, [groups, saveGroupsToStorage])
 
   const addMemberToGroup = useCallback((groupId: string, name: string) => {
@@ -584,13 +666,12 @@ export function useExpenseData() {
     }
   }, [groups])
 
-
-
   return {
     people,
     products,
     paidBy,
     groups,
+    savedBills,
     isLoaded,
     addPerson,
     updatePerson,

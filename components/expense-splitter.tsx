@@ -19,7 +19,6 @@ const STEP_LABELS = ["Friends", "Products", "Assign", "Payer", "Summary"]
 export function ExpenseSplitter() {
   const [activeTab, setActiveTab] = useState<"groups" | "splitter" | "history">("groups")
   const [currentStep, setCurrentStep] = useState(1)
-  const [savedBills, setSavedBills] = useState<SavedBill[]>([])
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [showPwaPopup, setShowPwaPopup] = useState(false)
   
@@ -30,6 +29,7 @@ export function ExpenseSplitter() {
     payments,
     setPayments,
     groups,
+    savedBills,
     isLoaded,
     addPerson,
     updatePerson,
@@ -99,13 +99,6 @@ export function ExpenseSplitter() {
     }
   }, [])
 
-  // Load saved bills on mount
-  useEffect(() => {
-    if (isLoaded) {
-      setSavedBills(getSavedBills())
-    }
-  }, [isLoaded, getSavedBills])
-
   const handleReset = () => {
     resetAll()
     setCurrentStep(1)
@@ -113,7 +106,6 @@ export function ExpenseSplitter() {
 
   const handleSaveBill = () => {
     saveBill()
-    setSavedBills(getSavedBills())
     setActiveTab("history") // switch to history tab so user can see it!
   }
 
@@ -125,7 +117,6 @@ export function ExpenseSplitter() {
 
   const handleDeleteBill = (billId: string) => {
     deleteSavedBill(billId)
-    setSavedBills(getSavedBills())
   }
 
   const handleNewBill = () => {
