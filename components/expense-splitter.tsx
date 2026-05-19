@@ -403,10 +403,10 @@ export function ExpenseSplitter({
       </div>
 
       {/* Mobile Floating Bottom Tab Navigation (Fixed bottom) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-md border-t border-border/80 flex items-center justify-around py-2.5 shadow-lg px-2">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-slate-200/90 flex items-center justify-around pt-3 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-[0_-4px_24px_rgba(0,0,0,0.04)] px-3 select-none">
         <button
           onClick={() => setActiveTab("groups")}
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-all ${
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
             activeTab === "groups" ? "text-emerald-600 scale-105" : "text-muted-foreground"
           }`}
         >
@@ -418,7 +418,7 @@ export function ExpenseSplitter({
 
         <button
           onClick={() => setActiveTab("splitter")}
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-all ${
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
             activeTab === "splitter" ? "text-emerald-600 scale-105" : "text-muted-foreground"
           }`}
         >
@@ -430,7 +430,7 @@ export function ExpenseSplitter({
 
         <button
           onClick={() => setActiveTab("history")}
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-all ${
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
             activeTab === "history" ? "text-emerald-600 scale-105" : "text-muted-foreground"
           }`}
         >
@@ -442,7 +442,7 @@ export function ExpenseSplitter({
 
         <button
           onClick={() => setActiveTab("profile")}
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-all ${
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
             activeTab === "profile" ? "text-emerald-600 scale-105" : "text-muted-foreground"
           }`}
         >
