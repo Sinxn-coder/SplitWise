@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import dynamic from "next/dynamic"
 import { Wallet, ArrowRight, Sparkles, DollarSign, Send, Landmark, Coins } from "lucide-react"
 
@@ -11,25 +11,14 @@ const ExpenseSplitter = dynamic(
 )
 
 export default function Home() {
-  const [mounted, setMounted] = useState(false)
   const [isStarted, setIsStarted] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
-
-  // Hydration guard to ensure client and server render match perfectly
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const handleLaunch = () => {
     setIsExiting(true)
     setTimeout(() => {
       setIsStarted(true)
     }, 600) // matches transition duration
-  }
-
-  // Pre-hydration rendering shell in light theme background
-  if (!mounted) {
-    return <div className="min-h-screen bg-slate-50/50" />
   }
 
   if (isStarted) {
