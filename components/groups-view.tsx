@@ -367,7 +367,7 @@ export function GroupsView({
                     key={member.id}
                     className="flex items-center justify-between p-3.5 rounded-xl border border-border/40 bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-100/50 dark:hover:bg-slate-900/50 transition-colors"
                   >
-                    {editingMemberId === member.id ? (
+                    {editingMemberId === member.id && !member.userId ? (
                       <div className="flex items-center gap-2 flex-1">
                         <Input
                           value={editingMemberName}
@@ -400,36 +400,40 @@ export function GroupsView({
                       <>
                         <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{member.name}</span>
                         {/* Member options */}
-                        <div className="relative" ref={menuRef}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setOpenMemberMenuId(openMemberMenuId === member.id ? null : member.id)
-                            }}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/50 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-
-                          {openMemberMenuId === member.id && (
-                            <div
-                              className="absolute right-0 top-8 z-50 w-40 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-                              onClick={(e) => e.stopPropagation()}
+                        {(!member.userId || canRemoveMember(activeGroup, member)) && (
+                          <div className="relative" ref={menuRef}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenMemberMenuId(openMemberMenuId === member.id ? null : member.id)
+                              }}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/50 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
                             >
-                              <button
-                                onClick={() => {
-                                  setEditingMemberId(member.id)
-                                  setEditingMemberName(member.name)
-                                  setOpenMemberMenuId(null)
-                                }}
-                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+
+                            {openMemberMenuId === member.id && (
+                              <div
+                                className="absolute right-0 top-8 z-50 w-40 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <Edit3 className="h-3 w-3 text-slate-400" />
-                                Rename Member
-                              </button>
-                              {canRemoveMember(activeGroup, member) && (
-                                <>
+                                {!member.userId && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingMemberId(member.id)
+                                      setEditingMemberName(member.name)
+                                      setOpenMemberMenuId(null)
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+                                  >
+                                    <Edit3 className="h-3 w-3 text-slate-400" />
+                                    Rename Member
+                                  </button>
+                                )}
+                                {!member.userId && canRemoveMember(activeGroup, member) && (
                                   <div className="h-px bg-slate-100 dark:bg-slate-800 mx-2" />
+                                )}
+                                {canRemoveMember(activeGroup, member) && (
                                   <button
                                     onClick={() => {
                                       onRemoveMember(activeGroup.id, member.id)
@@ -443,11 +447,11 @@ export function GroupsView({
                                     <Trash2 className="h-3 w-3" />
                                     {isCurrentUserMember(member) && activeGroup.ownerId !== currentUserId ? "Leave Group" : "Remove Member"}
                                   </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -746,7 +750,7 @@ export function GroupsView({
                             key={member.id}
                             className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50"
                           >
-                            {editingMemberId === member.id ? (
+                            {editingMemberId === member.id && !member.userId ? (
                               <div className="flex items-center gap-2 flex-1">
                                 <Input
                                   value={editingMemberName}
@@ -780,36 +784,40 @@ export function GroupsView({
                               <>
                                 <span className="text-sm font-medium">{member.name}</span>
                                 {/* Member three-dot menu */}
-                                <div className="relative" ref={menuRef}>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setOpenMemberMenuId(openMemberMenuId === member.id ? null : member.id)
-                                    }}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
-                                  >
-                                    <MoreVertical className="h-3.5 w-3.5" />
-                                  </button>
-
-                                  {openMemberMenuId === member.id && (
-                                    <div
-                                      className="absolute right-0 top-8 z-50 w-40 bg-white rounded-xl border border-slate-200/80 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-                                      onClick={(e) => e.stopPropagation()}
+                                {(!member.userId || canRemoveMember(group, member)) && (
+                                  <div className="relative" ref={menuRef}>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setOpenMemberMenuId(openMemberMenuId === member.id ? null : member.id)
+                                      }}
+                                      className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
                                     >
-                                      <button
-                                        onClick={() => {
-                                          setEditingMemberId(member.id)
-                                          setEditingMemberName(member.name)
-                                          setOpenMemberMenuId(null)
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+                                      <MoreVertical className="h-3.5 w-3.5" />
+                                    </button>
+
+                                    {openMemberMenuId === member.id && (
+                                      <div
+                                        className="absolute right-0 top-8 z-50 w-40 bg-white rounded-xl border border-slate-200/80 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                                        onClick={(e) => e.stopPropagation()}
                                       >
-                                        <Edit3 className="h-3 w-3 text-slate-400" />
-                                        Rename
-                                      </button>
-                                      {canRemoveMember(group, member) && (
-                                        <>
+                                        {!member.userId && (
+                                          <button
+                                            onClick={() => {
+                                              setEditingMemberId(member.id)
+                                              setEditingMemberName(member.name)
+                                              setOpenMemberMenuId(null)
+                                            }}
+                                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+                                          >
+                                            <Edit3 className="h-3 w-3 text-slate-400" />
+                                            Rename
+                                          </button>
+                                        )}
+                                        {!member.userId && canRemoveMember(group, member) && (
                                           <div className="h-px bg-slate-100 mx-2" />
+                                        )}
+                                        {canRemoveMember(group, member) && (
                                           <button
                                             onClick={() => {
                                               onRemoveMember(group.id, member.id)
@@ -820,11 +828,11 @@ export function GroupsView({
                                             <Trash2 className="h-3 w-3" />
                                             {isCurrentUserMember(member) && group.ownerId !== currentUserId ? "Leave" : "Remove"}
                                           </button>
-                                        </>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </>
                             )}
                           </div>

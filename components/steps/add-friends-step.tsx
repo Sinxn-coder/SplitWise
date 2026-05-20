@@ -100,7 +100,7 @@ export function AddFriendsStep({
                   className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border/50 animate-in fade-in slide-in-from-left-2 duration-200"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  {editingId === person.id ? (
+                  {editingId === person.id && !person.userId ? (
                     <>
                       <Input
                         value={editingName}
@@ -154,14 +154,16 @@ export function AddFriendsStep({
                         </div>
                       ) : (
                         <>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            onClick={() => startEditing(person)}
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </Button>
+                          {!person.userId && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              onClick={() => startEditing(person)}
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             size="icon"
                             variant="ghost"

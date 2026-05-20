@@ -566,7 +566,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
 
   const updatePerson = useCallback((id: string, name: string) => {
     setPeople((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, name: name.trim() } : p))
+      prev.map((p) => (p.id === id && !p.userId ? { ...p, name: name.trim() } : p))
     )
   }, [])
 
@@ -1030,6 +1030,13 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   }, [groups, removeJoinedGroupId, saveGroupsToStorage, userSession])
 
   const updateMemberInGroup = useCallback((groupId: string, personId: string, name: string) => {
+    const group = groups.find((g) => g.id === groupId)
+    const member = group?.members.find((m) => m.id === personId)
+    if (member?.userId) {
+      console.warn("Cannot rename a user who joined with a share code / user account.")
+      return
+    }
+
     const updated = groups.map((g) => {
       if (g.id === groupId) {
         return {
