@@ -478,9 +478,10 @@ export function ExpenseSplitter({
                       grandTotal={grandTotal}
                       onBack={() => setCurrentStep(3)}
                       onContinue={() => {
-                        // Auto-save immediately when entering final step in group context or history bill
-                        if (activeGroupId || activeBillId) {
-                          saveBill(activeGroupId ?? undefined, activeGroupName ?? undefined, activeBillId ?? undefined)
+                        // Auto-save immediately when entering final step
+                        const savedId = saveBill(activeGroupId ?? undefined, activeGroupName ?? undefined, activeBillId ?? undefined)
+                        if (!activeBillId) {
+                          setActiveBillId(savedId)
                         }
                         setCurrentStep(5)
                       }}
