@@ -15,6 +15,7 @@ import {
   History,
   IndianRupee,
   FileText,
+  Eye,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -525,43 +526,50 @@ export function GroupsView({
                   <FileText className="h-10 w-10 mx-auto mb-3 opacity-20" />
                   <p className="font-medium text-foreground text-sm">No bills yet</p>
                   <p className="text-xs mt-1">Bills you create in this group will appear here</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    onClick={() => setGroupDetailTab("new-bill")}
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" />
-                    Create First Bill
-                  </Button>
+                  {activeGroup.ownerId === currentUserId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => setGroupDetailTab("new-bill")}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Create First Bill
+                    </Button>
+                  )}
                 </div>
               ) : (
-                groupBills.map((bill, index) => {
-                  const payersCount = bill.payments ? Object.keys(bill.payments).filter(id => (bill.payments?.[id] || 0) > 0).length : 0
-                  let payerText = ""
-                  if (payersCount > 1) {
-                    payerText = `Paid by ${payersCount} people`
-                  } else if (bill.paidBy) {
-                    const singlePayer = bill.people.find((p) => p.id === bill.paidBy)
-                    if (singlePayer) payerText = `Paid by ${singlePayer.name}`
-                  } else if (bill.payments) {
-                    const solePayerId = Object.keys(bill.payments).find(id => (bill.payments?.[id] || 0) > 0)
-                    const solePayer = solePayerId ? bill.people.find(p => p.id === solePayerId) : null
-                    if (solePayer) payerText = `Paid by ${solePayer.name}`
-                  }
+                <>
+                  {/* Read-only notice for non-owners */}
+                  {activeGroup.ownerId !== currentUserId && (
+                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 mb-2">
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">View only — bills are managed by the group creator</span>
+                    </div>
+                  )}
+                  {groupBills.map((bill, index) => {
+                    const isOwner = activeGroup.ownerId === currentUserId
+                    const payersCount = bill.payments ? Object.keys(bill.payments).filter(id => (bill.payments?.[id] || 0) > 0).length : 0
+                    let payerText = ""
+                    if (payersCount > 1) {
+                      payerText = `Paid by ${payersCount} people`
+                    } else if (bill.paidBy) {
+                      const singlePayer = bill.people.find((p) => p.id === bill.paidBy)
+                      if (singlePayer) payerText = `Paid by ${singlePayer.name}`
+                    } else if (bill.payments) {
+                      const solePayerId = Object.keys(bill.payments).find(id => (bill.payments?.[id] || 0) > 0)
+                      const solePayer = solePayerId ? bill.people.find(p => p.id === solePayerId) : null
+                      if (solePayer) payerText = `Paid by ${solePayer.name}`
+                    }
 
-                  return (
-                    <div
-                      key={bill.id}
-                      className="p-3 rounded-xl bg-muted/50 border border-border/50 hover:border-primary/30 transition-all duration-200 animate-in fade-in slide-in-from-left-2"
-                      style={{ animationDelay: `${index * 40}ms` }}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <button
-                          onClick={() => onLoadBill(bill.id)}
-                          className="flex-1 text-left hover:opacity-85 transition-opacity"
-                        >
-                          <div className="flex items-center gap-3">
+                    return (
+                      <div
+                        key={bill.id}
+                        className="p-3 rounded-xl bg-muted/50 border border-border/50 hover:border-primary/20 transition-all duration-200 animate-in fade-in slide-in-from-left-2"
+                        style={{ animationDelay: `${index * 40}ms` }}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          {/* Bill info — always visible */}
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
                             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                               <IndianRupee className="h-5 w-5 text-primary" />
                             </div>
@@ -575,25 +583,43 @@ export function GroupsView({
                                   <Users className="h-2.5 w-2.5" />
                                   {bill.people.length} people
                                 </span>
+                                {!isOwner && (
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
+                                    <Eye className="h-2.5 w-2.5" />
+                                    View only
+                                  </span>
+                                )}
                               </div>
                               <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
                                 <span>{formatDate(bill.createdAt)}</span>
                                 {payerText && <><span>·</span><span className="truncate">{payerText}</span></>}
                               </div>
                             </div>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                           </div>
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onDeleteBill(bill.id) }}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-muted-foreground hover:text-rose-600 transition-all cursor-pointer shrink-0"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                          {/* Actions — only for group owner */}
+                          {isOwner && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => onLoadBill(bill.id)}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                                title="Load bill in splitter"
+                              >
+                                <ChevronRight className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onDeleteBill(bill.id) }}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-muted-foreground hover:text-rose-600 transition-all cursor-pointer"
+                                title="Delete bill"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })
+                    )
+                  })}
+                </>
               )}
             </CardContent>
           </Card>

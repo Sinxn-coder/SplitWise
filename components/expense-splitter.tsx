@@ -151,10 +151,15 @@ export function ExpenseSplitter({
   }, [hasCompletedTutorial, showTutorial])
 
   const handleReset = () => {
+    const wasGroupBill = !!activeGroupId
     resetAll()
     setCurrentStep(1)
     setActiveGroupId(null)
     setActiveGroupName(null)
+    // If done with a group bill, go back to groups tab
+    if (wasGroupBill) {
+      setActiveTab("groups")
+    }
   }
 
   const handleSaveBill = () => {
@@ -453,7 +458,13 @@ export function ExpenseSplitter({
                       setPayments={setPayments}
                       grandTotal={grandTotal}
                       onBack={() => setCurrentStep(3)}
-                      onContinue={() => setCurrentStep(5)}
+                      onContinue={() => {
+                        // Auto-save immediately when entering final step in group context
+                        if (activeGroupId) {
+                          saveBill(activeGroupId, activeGroupName ?? undefined)
+                        }
+                        setCurrentStep(5)
+                      }}
                     />
                   )}
 
@@ -468,6 +479,7 @@ export function ExpenseSplitter({
                       onBack={() => setCurrentStep(4)}
                       onReset={handleReset}
                       onSaveBill={handleSaveBill}
+                      isGroupBill={!!activeGroupId}
                     />
                   )}
                 </div>
