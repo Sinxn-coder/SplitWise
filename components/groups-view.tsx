@@ -163,6 +163,8 @@ export function GroupsView({
 
   const activeGroup = groups.find(g => g.id === activeDetailGroupId)
   const canDeleteActiveGroup = activeGroup?.ownerId === currentUserId
+  const canRemoveMember = (group: Group, member: Person) => group.ownerId === currentUserId || member.userId === currentUserId
+  const isCurrentUserMember = (member: Person) => member.userId === currentUserId
 
   if (activeGroup) {
     return (
@@ -425,17 +427,24 @@ export function GroupsView({
                                 <Edit3 className="h-3 w-3 text-slate-400" />
                                 Rename Member
                               </button>
-                              <div className="h-px bg-slate-100 dark:bg-slate-800 mx-2" />
-                              <button
-                                onClick={() => {
-                                  onRemoveMember(activeGroup.id, member.id)
-                                  setOpenMemberMenuId(null)
-                                }}
-                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                                Remove Member
-                              </button>
+                              {canRemoveMember(activeGroup, member) && (
+                                <>
+                                  <div className="h-px bg-slate-100 dark:bg-slate-800 mx-2" />
+                                  <button
+                                    onClick={() => {
+                                      onRemoveMember(activeGroup.id, member.id)
+                                      setOpenMemberMenuId(null)
+                                      if (isCurrentUserMember(member) && activeGroup.ownerId !== currentUserId) {
+                                        setActiveDetailGroupId(null)
+                                      }
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                    {isCurrentUserMember(member) && activeGroup.ownerId !== currentUserId ? "Leave Group" : "Remove Member"}
+                                  </button>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -798,17 +807,21 @@ export function GroupsView({
                                         <Edit3 className="h-3 w-3 text-slate-400" />
                                         Rename
                                       </button>
-                                      <div className="h-px bg-slate-100 mx-2" />
-                                      <button
-                                        onClick={() => {
-                                          onRemoveMember(group.id, member.id)
-                                          setOpenMemberMenuId(null)
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                        Remove
-                                      </button>
+                                      {canRemoveMember(group, member) && (
+                                        <>
+                                          <div className="h-px bg-slate-100 mx-2" />
+                                          <button
+                                            onClick={() => {
+                                              onRemoveMember(group.id, member.id)
+                                              setOpenMemberMenuId(null)
+                                            }}
+                                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left"
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                            {isCurrentUserMember(member) && group.ownerId !== currentUserId ? "Leave" : "Remove"}
+                                          </button>
+                                        </>
+                                      )}
                                     </div>
                                   )}
                                 </div>

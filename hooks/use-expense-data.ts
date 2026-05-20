@@ -107,6 +107,23 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     }
   }, [getPendingDeleteGroupIds, getPendingDeleteGroupsKey, userId])
 
+  const removeJoinedGroupId = useCallback((groupId: string, id = userId) => {
+    const storedJoinedKey = `homiepay-joined-group-ids-${id}`
+    try {
+      const storedJoined = localStorage.getItem(storedJoinedKey)
+      const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
+      const next = joinedIds.filter((joinedId) => joinedId !== groupId)
+
+      if (next.length > 0) {
+        localStorage.setItem(storedJoinedKey, JSON.stringify(next))
+      } else {
+        localStorage.removeItem(storedJoinedKey)
+      }
+    } catch (e) {
+      console.error("Failed to update joined groups:", e)
+    }
+  }, [userId])
+
   // Load user data on mount / session change
   useEffect(() => {
     if (!userSession) {
@@ -303,6 +320,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       const storedJoined = localStorage.getItem(storedJoinedKey)
       const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
       const pendingDeleteGroupIds = new Set(getPendingDeleteGroupIds(currentUserId))
+      const inactiveJoinedGroupIds = new Set<string>()
 
       let supabaseGroups: any[] = []
       const { data: createdGroups, error: groupsErr } = await supabase
@@ -320,11 +338,26 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
           .select("*")
           .in("id", joinedIds)
         if (!joinedErr && joinedGroups) {
+          const activeJoinedIds: string[] = []
           joinedGroups.forEach((jg: any) => {
-            if (!supabaseGroups.some(cg => cg.id === jg.id)) {
+            const isStillMember = (jg.members || []).some((member: Person) => member.userId === currentUserId)
+            if (isStillMember && !supabaseGroups.some(cg => cg.id === jg.id)) {
               supabaseGroups.push(jg)
             }
+            if (isStillMember) {
+              activeJoinedIds.push(jg.id)
+            } else {
+              inactiveJoinedGroupIds.add(jg.id)
+            }
           })
+
+          if (activeJoinedIds.length !== joinedIds.length) {
+            if (activeJoinedIds.length > 0) {
+              localStorage.setItem(storedJoinedKey, JSON.stringify(activeJoinedIds))
+            } else {
+              localStorage.removeItem(storedJoinedKey)
+            }
+          }
         }
       }
 
@@ -349,7 +382,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
 
         // Keep optimistic local changes visible until their background write confirms.
         localGroups.forEach(g => {
-          if (!pendingDeleteGroupIds.has(g.id)) {
+          if (!pendingDeleteGroupIds.has(g.id) && !inactiveJoinedGroupIds.has(g.id)) {
             groupsMap.set(g.id, g)
           }
         })
@@ -375,7 +408,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       } else {
         const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
         const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
-        mergedGroups = localGroups.filter((group) => !pendingDeleteGroupIds.has(group.id))
+        mergedGroups = localGroups.filter((group) => !pendingDeleteGroupIds.has(group.id) && !inactiveJoinedGroupIds.has(group.id))
 
         if (JSON.stringify(localGroups) !== JSON.stringify(mergedGroups)) {
           localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(mergedGroups))
@@ -955,14 +988,46 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   }, [groups, saveGroupsToStorage])
 
   const removeMemberFromGroup = useCallback((groupId: string, personId: string) => {
-    const updated = groups.map((g) => {
-      if (g.id === groupId) {
-        return { ...g, members: g.members.filter((m) => m.id !== personId), synced: false }
-      }
-      return g
-    })
+    const group = groups.find((g) => g.id === groupId)
+    const member = group?.members.find((m) => m.id === personId)
+    const isCreator = group?.ownerId === userSession?.id
+    const isLeavingSelf = !!userSession?.id && member?.userId === userSession.id
+
+    if (!group || !member || (!isCreator && !isLeavingSelf)) {
+      console.warn("Only the group creator can remove members. Members can only leave as themselves.")
+      return
+    }
+
+    const nextGroup = {
+      ...group,
+      members: group.members.filter((m) => m.id !== personId),
+      synced: false,
+    }
+
+    const updated = isLeavingSelf && !isCreator
+      ? groups.filter((g) => g.id !== groupId)
+      : groups.map((g) => (g.id === groupId ? nextGroup : g))
+
+    if (isLeavingSelf && !isCreator && userSession?.id) {
+      removeJoinedGroupId(groupId, userSession.id)
+    }
+
+    if (isLeavingSelf && isCreator) {
+      console.warn("Group creators cannot leave their own group. Delete the group or remove other members instead.")
+      return
+    }
+
     saveGroupsToStorage(updated)
-  }, [groups, saveGroupsToStorage])
+    if (isLeavingSelf && !isCreator && navigator.onLine) {
+      ;(async () => {
+        try {
+          await supabase.from("groups").update({ members: nextGroup.members }).eq("id", groupId)
+        } catch (err) {
+          console.warn("Supabase failed to leave group in background:", err)
+        }
+      })()
+    }
+  }, [groups, removeJoinedGroupId, saveGroupsToStorage, userSession])
 
   const updateMemberInGroup = useCallback((groupId: string, personId: string, name: string) => {
     const updated = groups.map((g) => {
