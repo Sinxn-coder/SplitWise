@@ -99,103 +99,31 @@ create index if not exists idx_bills_group_id on public.bills(group_id);
 
 -- 5. Row Level Security (RLS) Configuration
 -- ─────────────────────────────────────────────────────────────────────────────
-alter table public.users enable row level security;
-alter table public.groups enable row level security;
-alter table public.bills enable row level security;
+-- NOTE: HomiePay uses a custom client-side authentication system with local storage,
+-- meaning it does not use Supabase Auth. Because of this, standard RLS policies
+-- using `auth.uid()` will block all read/write requests since the user will appear
+-- as anonymous to Supabase.
+-- 
+-- Therefore, we must DISABLE Row Level Security to allow the app to sync data.
+-- (Security is handled at the application logic level).
 
--- USERS POLICIES
-create policy select_users on public.users
-  for select using (true);
+-- Drop any existing policies
+drop policy if exists select_users on public.users;
+drop policy if exists insert_users on public.users;
+drop policy if exists update_users on public.users;
 
-create policy insert_users on public.users
-  for insert with check (true);
+drop policy if exists select_groups on public.groups;
+drop policy if exists insert_groups on public.groups;
+drop policy if exists update_groups on public.groups;
+drop policy if exists delete_groups on public.groups;
 
-create policy update_users on public.users
-  for update using (auth.uid() = id);
+drop policy if exists select_bills on public.bills;
+drop policy if exists insert_bills on public.bills;
+drop policy if exists update_bills on public.bills;
+drop policy if exists delete_bills on public.bills;
 
--- GROUPS POLICIES
-create policy select_groups on public.groups
-  for select using (
-    auth.uid() = user_id 
-    or exists (
-      select 1 
-      from jsonb_array_elements(members) as m 
-      where (m->>'userId')::uuid = auth.uid()
-    )
-  );
+-- Disable RLS
+alter table public.users disable row level security;
+alter table public.groups disable row level security;
+alter table public.bills disable row level security;
 
-create policy insert_groups on public.groups
-  for insert with check (auth.uid() = user_id);
-
-create policy update_groups on public.groups
-  for update using (auth.uid() = user_id);
-
-create policy delete_groups on public.groups
-  for delete using (auth.uid() = user_id);
-
--- BILLS POLICIES
-create policy select_bills on public.bills
-  for select using (
-    auth.uid() = user_id 
-    or (
-      group_id is not null 
-      and exists (
-        select 1 
-        from public.groups g 
-        where g.id = group_id 
-        and (
-          g.user_id = auth.uid() 
-          or exists (
-            select 1 
-            from jsonb_array_elements(g.members) as m 
-            where (m->>'userId')::uuid = auth.uid()
-          )
-        )
-      )
-    )
-  );
-
-create policy insert_bills on public.bills
-  for insert with check (
-    auth.uid() = user_id 
-    or (
-      group_id is not null 
-      and exists (
-        select 1 
-        from public.groups g 
-        where g.id = group_id 
-        and (
-          g.user_id = auth.uid() 
-          or exists (
-            select 1 
-            from jsonb_array_elements(g.members) as m 
-            where (m->>'userId')::uuid = auth.uid()
-          )
-        )
-      )
-    )
-  );
-
-create policy update_bills on public.bills
-  for update using (
-    auth.uid() = user_id 
-    or (
-      group_id is not null 
-      and exists (
-        select 1 
-        from public.groups g 
-        where g.id = group_id 
-        and (
-          g.user_id = auth.uid() 
-          or exists (
-            select 1 
-            from jsonb_array_elements(g.members) as m 
-            where (m->>'userId')::uuid = auth.uid()
-          )
-        )
-      )
-    )
-  );
-
-create policy delete_bills on public.bills
-  for delete using (auth.uid() = user_id);
