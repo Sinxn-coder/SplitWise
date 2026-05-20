@@ -792,7 +792,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   }, [])
 
   // Bill History Operations (Saved Forever)
-  const saveBill = useCallback(() => {
+  const saveBill = useCallback((groupId?: string, groupName?: string) => {
     const bill: SavedBill = {
       id: crypto.randomUUID(),
       createdAt: Date.now(),
@@ -801,6 +801,8 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       paidBy,
       payments: { ...payments },
       grandTotal: products.reduce((sum, p) => sum + p.price * p.quantity, 0),
+      groupId: groupId || undefined,
+      groupName: groupName || undefined,
       synced: false
     }
 

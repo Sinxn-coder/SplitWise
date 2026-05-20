@@ -32,6 +32,9 @@ export function ExpenseSplitter({
   const [showSyncedToast, setShowSyncedToast] = useState(false)
   const [hasCompletedTutorial, setHasCompletedTutorial] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
+  // Track active group context so bills get tagged with groupId/groupName
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+  const [activeGroupName, setActiveGroupName] = useState<string | null>(null)
   
   const {
     people,
@@ -150,11 +153,21 @@ export function ExpenseSplitter({
   const handleReset = () => {
     resetAll()
     setCurrentStep(1)
+    setActiveGroupId(null)
+    setActiveGroupName(null)
   }
 
   const handleSaveBill = () => {
-    saveBill()
-    setActiveTab("history") // switch to history tab so user can see it!
+    saveBill(activeGroupId ?? undefined, activeGroupName ?? undefined)
+    // If created from a group context, go back to groups tab so user sees it in Bills tab
+    if (activeGroupId) {
+      setActiveTab("groups")
+    } else {
+      setActiveTab("history")
+    }
+    setActiveGroupId(null)
+    setActiveGroupName(null)
+    setCurrentStep(1)
   }
 
   const handleLoadBill = (billId: string) => {
@@ -170,6 +183,8 @@ export function ExpenseSplitter({
   const handleNewBill = () => {
     resetAll()
     setCurrentStep(1)
+    setActiveGroupId(null)
+    setActiveGroupName(null)
   }
 
   const handleInstallApp = async () => {
@@ -360,6 +375,7 @@ export function ExpenseSplitter({
                 <GroupsView
                   groups={groups}
                   currentUserId={userSession.id}
+                  savedBills={savedBills}
                   onAddGroup={addGroup}
                   onUpdateGroup={updateGroup}
                   onDeleteGroup={deleteGroup}
@@ -367,8 +383,15 @@ export function ExpenseSplitter({
                   onRemoveMember={removeMemberFromGroup}
                   onUpdateMember={updateMemberInGroup}
                   onJoinGroup={joinGroupByShareCode}
+                  onLoadBill={(billId) => {
+                    handleLoadBill(billId)
+                  }}
+                  onDeleteBill={handleDeleteBill}
                   onSelectGroup={(groupId) => {
+                    const group = groups.find(g => g.id === groupId)
                     loadGroupIntoActiveSplit(groupId)
+                    setActiveGroupId(groupId)
+                    setActiveGroupName(group?.name ?? null)
                     setCurrentStep(2) // Skip Step 1 (Friends) since group loaded them!
                     setActiveTab("splitter")
                   }}

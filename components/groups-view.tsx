@@ -12,17 +12,21 @@ import {
   Receipt,
   Copy,
   MoreVertical,
+  History,
+  IndianRupee,
+  FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { MobileBottomSheet } from "@/components/mobile-bottom-sheet"
 import { PremiumModal } from "@/components/premium-modal"
-import type { Group, Person } from "@/hooks/use-expense-data"
+import type { Group, Person, SavedBill } from "@/hooks/use-expense-data"
 
 interface GroupsViewProps {
   groups: Group[]
   currentUserId: string
+  savedBills: SavedBill[]
   onAddGroup: (name: string, addSelf: boolean) => string
   onUpdateGroup: (id: string, updates: Partial<Omit<Group, "id">>) => void
   onDeleteGroup: (id: string) => void
@@ -31,12 +35,15 @@ interface GroupsViewProps {
   onUpdateMember: (groupId: string, personId: string, name: string) => void
   onJoinGroup: (code: string) => Promise<{ success: boolean; message: string; groupName?: string }>
   onSelectGroup: (groupId: string) => void
+  onLoadBill: (billId: string) => void
+  onDeleteBill: (billId: string) => void
   onNewBill: () => void
 }
 
 export function GroupsView({
   groups,
   currentUserId,
+  savedBills,
   onAddGroup,
   onUpdateGroup,
   onDeleteGroup,
@@ -45,6 +52,8 @@ export function GroupsView({
   onUpdateMember,
   onJoinGroup,
   onSelectGroup,
+  onLoadBill,
+  onDeleteBill,
   onNewBill,
 }: GroupsViewProps) {
   const [newGroupName, setNewGroupName] = useState("")
@@ -57,6 +66,7 @@ export function GroupsView({
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editingMemberName, setEditingMemberName] = useState("")
   const [activeDetailGroupId, setActiveDetailGroupId] = useState<string | null>(null)
+  const [groupDetailTab, setGroupDetailTab] = useState<"members" | "bills" | "new-bill">("members")
 
   // Three-dot dropdown menu state
   const [openMenuGroupId, setOpenMenuGroupId] = useState<string | null>(null)
@@ -166,21 +176,35 @@ export function GroupsView({
   const canRemoveMember = (group: Group, member: Person) => group.ownerId === currentUserId || member.userId === currentUserId
   const isCurrentUserMember = (member: Person) => member.userId === currentUserId
 
+  const groupBills = savedBills.filter(b => b.groupId === activeGroup?.id)
+
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp)
+    return date.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
   if (activeGroup) {
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-300">
-        {/* Header with Back button */}
+      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300">
+        {/* Header with Back button + Group Settings Menu */}
         <div className="flex items-center justify-between">
           <Button
             variant="ghost"
-            onClick={() => setActiveDetailGroupId(null)}
+            onClick={() => {
+              setActiveDetailGroupId(null)
+              setGroupDetailTab("members")
+            }}
             className="gap-2 px-3 py-1.5 h-9 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all font-semibold text-xs tracking-wider uppercase cursor-pointer"
           >
             <ChevronRight className="h-4 w-4 rotate-180" />
             Back to Groups
           </Button>
 
-          {/* Optional Group Settings Menu (Rename / Delete) */}
           <div className="relative" ref={menuRef}>
             <Button
               variant="outline"
@@ -192,7 +216,6 @@ export function GroupsView({
             </Button>
             {openMenuGroupId === activeGroup.id && (
               <div className="absolute right-0 top-10 z-50 w-48 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                {/* Rename Group */}
                 <button
                   onClick={() => {
                     setEditingGroupId(activeGroup.id)
@@ -205,8 +228,6 @@ export function GroupsView({
                   Rename Group
                 </button>
                 {canDeleteActiveGroup && <div className="h-px bg-slate-100 dark:bg-slate-800 mx-3" />}
-                
-                {/* Delete Group */}
                 {canDeleteActiveGroup && (confirmDeleteGroupId === activeGroup.id ? (
                   <div className="px-4 py-3 space-y-2">
                     <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wide">Are you sure?</p>
@@ -232,7 +253,7 @@ export function GroupsView({
                   </div>
                 ) : (
                   <button
-                    onClick={() => confirmDeleteGroupId === activeGroup.id || setConfirmDeleteGroupId(activeGroup.id)}
+                    onClick={() => setConfirmDeleteGroupId(activeGroup.id)}
                     className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -244,74 +265,58 @@ export function GroupsView({
           </div>
         </div>
 
-        {/* Group Main Card Info */}
+        {/* Group Identity Card */}
         <Card className="border-border/50 shadow-lg overflow-hidden relative">
-          {/* Custom Banner Background Gradient */}
-          <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-500 to-teal-400" />
-          <CardContent className="p-6 pt-8 space-y-6">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-400" />
+          <CardContent className="p-4 pt-6">
+            <div className="flex items-center gap-4">
               <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-md"
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-md shrink-0"
                 style={{ backgroundColor: activeGroup.color }}
               >
                 {activeGroup.name.charAt(0).toUpperCase()}
               </div>
-
-              <div className="space-y-1.5 flex-1 w-full">
+              <div className="flex-1 min-w-0">
                 {editingGroupId === activeGroup.id ? (
-                  <div className="flex items-center gap-2 justify-center sm:justify-start">
+                  <div className="flex items-center gap-2">
                     <Input
                       value={editingGroupName}
                       onChange={(e) => setEditingGroupName(e.target.value)}
-                      className="h-10 text-lg font-bold max-w-xs"
+                      className="h-9 text-base font-bold"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleSaveGroupName(activeGroup.id)
                         if (e.key === "Escape") setEditingGroupId(null)
                       }}
                     />
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-9 w-9"
-                      onClick={() => handleSaveGroupName(activeGroup.id)}
-                    >
-                      <Check className="h-5 w-5 text-primary" />
+                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => handleSaveGroupName(activeGroup.id)}>
+                      <Check className="h-4 w-4 text-primary" />
                     </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-9 w-9"
-                      onClick={() => setEditingGroupId(null)}
-                    >
-                      <X className="h-5 w-5" />
+                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setEditingGroupId(null)}>
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
                 ) : (
-                  <h2 className="text-2xl font-black text-foreground tracking-tight">{activeGroup.name}</h2>
+                  <h2 className="text-xl font-black text-foreground tracking-tight truncate">{activeGroup.name}</h2>
                 )}
-
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/30 text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-                    <Users className="h-3 w-3" />
-                    {activeGroup.members.length} Members
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/30 text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                    <Users className="h-2.5 w-2.5" />
+                    {activeGroup.members.length} members
                   </span>
-
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] font-extrabold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                    <History className="h-2.5 w-2.5" />
+                    {groupBills.length} bill{groupBills.length !== 1 ? "s" : ""}
+                  </span>
                   {activeGroup.shareCode && (
                     <button
                       onClick={(e) => handleCopyCode(e, activeGroup)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] font-extrabold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors uppercase tracking-wider cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] font-extrabold text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors uppercase tracking-wider cursor-pointer"
                     >
                       {copiedGroupId === activeGroup.id ? (
-                        <>
-                          <Check className="h-3 w-3 text-emerald-600" />
-                          Copied
-                        </>
+                        <><Check className="h-2.5 w-2.5 text-emerald-600" />Copied!</>
                       ) : (
-                        <>
-                          <Copy className="h-3 w-3" />
-                          Code: {activeGroup.shareCode}
-                        </>
+                        <><Copy className="h-2.5 w-2.5" />Code: {activeGroup.shareCode}</>
                       )}
                     </button>
                   )}
@@ -321,195 +326,318 @@ export function GroupsView({
           </CardContent>
         </Card>
 
-        {/* Group Members Section */}
-        <Card className="border-border/50 shadow-md">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                Group Members
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Manage group participants and split profiles
-              </p>
-            </div>
-
-            {/* Quick add trigger for desktop */}
-            <div className="hidden sm:flex items-center gap-2">
-              <Input
-                placeholder="New member name"
-                value={newMemberName}
-                onChange={(e) => setNewMemberName(e.target.value)}
-                className="h-9 w-40"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleAddMember(activeGroup.id)
-                }}
-              />
-              <Button
-                size="sm"
-                className="h-9"
-                onClick={() => handleAddMember(activeGroup.id)}
-                disabled={!newMemberName.trim()}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {activeGroup.members.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                No members in this group yet. Add friends below to start.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {activeGroup.members.map((member) => (
-                  <div
-                    key={member.id}
-                    className="flex items-center justify-between p-3.5 rounded-xl border border-border/40 bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-100/50 dark:hover:bg-slate-900/50 transition-colors"
-                  >
-                    {editingMemberId === member.id && !member.userId ? (
-                      <div className="flex items-center gap-2 flex-1">
-                        <Input
-                          value={editingMemberName}
-                          onChange={(e) => setEditingMemberName(e.target.value)}
-                          className="h-8 flex-1"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveMemberName(activeGroup.id, member.id)
-                            if (e.key === "Escape") setEditingMemberId(null)
-                          }}
-                        />
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => handleSaveMemberName(activeGroup.id, member.id)}
-                        >
-                          <Check className="h-4 w-4 text-primary" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => setEditingMemberId(null)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{member.name}</span>
-                        {/* Member options */}
-                        {(!member.userId || canRemoveMember(activeGroup, member)) && (
-                          <div className="relative" ref={menuRef}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setOpenMemberMenuId(openMemberMenuId === member.id ? null : member.id)
-                              }}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/50 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
-
-                            {openMemberMenuId === member.id && (
-                              <div
-                                className="absolute right-0 top-8 z-50 w-40 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {!member.userId && (
-                                  <button
-                                    onClick={() => {
-                                      setEditingMemberId(member.id)
-                                      setEditingMemberName(member.name)
-                                      setOpenMemberMenuId(null)
-                                    }}
-                                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
-                                  >
-                                    <Edit3 className="h-3 w-3 text-slate-400" />
-                                    Rename Member
-                                  </button>
-                                )}
-                                {!member.userId && canRemoveMember(activeGroup, member) && (
-                                  <div className="h-px bg-slate-100 dark:bg-slate-800 mx-2" />
-                                )}
-                                {canRemoveMember(activeGroup, member) && (
-                                  <button
-                                    onClick={() => {
-                                      onRemoveMember(activeGroup.id, member.id)
-                                      setOpenMemberMenuId(null)
-                                      if (isCurrentUserMember(member) && activeGroup.ownerId !== currentUserId) {
-                                        setActiveDetailGroupId(null)
-                                      }
-                                    }}
-                                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                    {isCurrentUserMember(member) && activeGroup.ownerId !== currentUserId ? "Leave Group" : "Remove Member"}
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Mobile / Screen-small Add Member Trigger */}
-            <div className="sm:hidden pt-2">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setAddingMemberGroupId(activeGroup.id)}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Member
-              </Button>
-              {addingMemberGroupId === activeGroup.id && (
-                <MobileBottomSheet
-                  isOpen={addingMemberGroupId === activeGroup.id}
-                  onClose={() => {
-                    setAddingMemberGroupId(null)
-                    setNewMemberName("")
-                  }}
-                  title="Add Group Member"
-                >
-                  <div className="space-y-4">
-                    <Input
-                      placeholder="Enter member name"
-                      value={newMemberName}
-                      onChange={(e) => setNewMemberName(e.target.value)}
-                      autoFocus
-                    />
-                    <Button
-                      className="w-full"
-                      onClick={() => handleAddMember(activeGroup.id)}
-                      disabled={!newMemberName.trim()}
-                    >
-                      Add Member
-                    </Button>
-                  </div>
-                </MobileBottomSheet>
+        {/* ───────── 3-Tab Navigation ───────── */}
+        <div className="relative flex bg-slate-100/80 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800/60 p-1 rounded-2xl">
+          {/* Sliding highlight */}
+          <div
+            className={`absolute top-1 bottom-1 w-[calc(33.333%-4px)] bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200/20 dark:border-slate-700/20 transition-all duration-300 ease-out ${
+              groupDetailTab === "members" ? "left-1" : groupDetailTab === "bills" ? "left-[calc(33.333%+1px)]" : "left-[calc(66.666%+2px)]"
+            }`}
+          />
+          {([
+            { key: "members", icon: Users, label: "Members" },
+            { key: "bills",   icon: History, label: "Bills" },
+            { key: "new-bill", icon: Receipt, label: "New Bill" },
+          ] as const).map(({ key, icon: Icon, label }) => (
+            <button
+              key={key}
+              onClick={() => setGroupDetailTab(key)}
+              className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-xl transition-colors cursor-pointer ${
+                groupDetailTab === key
+                  ? "text-slate-800 dark:text-white"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+              {key === "bills" && groupBills.length > 0 && (
+                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                  groupDetailTab === "bills" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400" : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                }`}>
+                  {groupBills.length}
+                </span>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </button>
+          ))}
+        </div>
 
-        {/* Start Bill CTA Button */}
-        <Button
-          className="w-full h-12 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer"
-          onClick={() => {
-            onSelectGroup(activeGroup.id)
-          }}
-          disabled={activeGroup.members.length === 0}
-        >
-          <Receipt className="h-4 w-4 mr-2" />
-          Start Bill with Group
-        </Button>
+        {/* ───────── Tab: Members ───────── */}
+        {groupDetailTab === "members" && (
+          <Card className="border-border/50 shadow-md animate-in fade-in duration-200">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-base font-bold">Group Members</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Manage participants and split profiles</p>
+              </div>
+              <div className="hidden sm:flex items-center gap-2">
+                <Input
+                  placeholder="New member name"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  className="h-9 w-40"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddMember(activeGroup.id) }}
+                />
+                <Button size="sm" className="h-9" onClick={() => handleAddMember(activeGroup.id)} disabled={!newMemberName.trim()}>
+                  <Plus className="h-4 w-4 mr-1" />Add
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {activeGroup.members.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">No members yet. Add friends to get started!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {activeGroup.members.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-3.5 rounded-xl border border-border/40 bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-100/50 dark:hover:bg-slate-900/50 transition-colors"
+                    >
+                      {editingMemberId === member.id && !member.userId ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <Input
+                            value={editingMemberName}
+                            onChange={(e) => setEditingMemberName(e.target.value)}
+                            className="h-8 flex-1"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveMemberName(activeGroup.id, member.id)
+                              if (e.key === "Escape") setEditingMemberId(null)
+                            }}
+                          />
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSaveMemberName(activeGroup.id, member.id)}>
+                            <Check className="h-4 w-4 text-primary" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingMemberId(null)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-[10px] font-black shrink-0">
+                              {member.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{member.name}</span>
+                          </div>
+                          {(!member.userId || canRemoveMember(activeGroup, member)) && (
+                            <div className="relative" ref={menuRef}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setOpenMemberMenuId(openMemberMenuId === member.id ? null : member.id)
+                                }}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/50 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </button>
+                              {openMemberMenuId === member.id && (
+                                <div
+                                  className="absolute right-0 top-8 z-50 w-40 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {!member.userId && (
+                                    <button
+                                      onClick={() => {
+                                        setEditingMemberId(member.id)
+                                        setEditingMemberName(member.name)
+                                        setOpenMemberMenuId(null)
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+                                    >
+                                      <Edit3 className="h-3 w-3 text-slate-400" />
+                                      Rename Member
+                                    </button>
+                                  )}
+                                  {!member.userId && canRemoveMember(activeGroup, member) && (
+                                    <div className="h-px bg-slate-100 dark:bg-slate-800 mx-2" />
+                                  )}
+                                  {canRemoveMember(activeGroup, member) && (
+                                    <button
+                                      onClick={() => {
+                                        onRemoveMember(activeGroup.id, member.id)
+                                        setOpenMemberMenuId(null)
+                                        if (isCurrentUserMember(member) && activeGroup.ownerId !== currentUserId) {
+                                          setActiveDetailGroupId(null)
+                                        }
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                      {isCurrentUserMember(member) && activeGroup.ownerId !== currentUserId ? "Leave Group" : "Remove Member"}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Mobile Add Member */}
+              <div className="sm:hidden pt-2">
+                <Button variant="outline" className="w-full" onClick={() => setAddingMemberGroupId(activeGroup.id)}>
+                  <Plus className="h-4 w-4 mr-1" />Add Member
+                </Button>
+                {addingMemberGroupId === activeGroup.id && (
+                  <MobileBottomSheet
+                    isOpen={addingMemberGroupId === activeGroup.id}
+                    onClose={() => { setAddingMemberGroupId(null); setNewMemberName("") }}
+                    title="Add Group Member"
+                  >
+                    <div className="space-y-4">
+                      <Input
+                        placeholder="Enter member name"
+                        value={newMemberName}
+                        onChange={(e) => setNewMemberName(e.target.value)}
+                        autoFocus
+                      />
+                      <Button className="w-full" onClick={() => handleAddMember(activeGroup.id)} disabled={!newMemberName.trim()}>
+                        Add Member
+                      </Button>
+                    </div>
+                  </MobileBottomSheet>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ───────── Tab: Bills ───────── */}
+        {groupDetailTab === "bills" && (
+          <Card className="border-border/50 shadow-md animate-in fade-in duration-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <History className="h-4 w-4 text-primary" />
+                Past Bills
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">All bills created in this group</p>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {groupBills.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  <FileText className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                  <p className="font-medium text-foreground text-sm">No bills yet</p>
+                  <p className="text-xs mt-1">Bills you create in this group will appear here</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => setGroupDetailTab("new-bill")}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Create First Bill
+                  </Button>
+                </div>
+              ) : (
+                groupBills.map((bill, index) => {
+                  const payersCount = bill.payments ? Object.keys(bill.payments).filter(id => (bill.payments?.[id] || 0) > 0).length : 0
+                  let payerText = ""
+                  if (payersCount > 1) {
+                    payerText = `Paid by ${payersCount} people`
+                  } else if (bill.paidBy) {
+                    const singlePayer = bill.people.find((p) => p.id === bill.paidBy)
+                    if (singlePayer) payerText = `Paid by ${singlePayer.name}`
+                  } else if (bill.payments) {
+                    const solePayerId = Object.keys(bill.payments).find(id => (bill.payments?.[id] || 0) > 0)
+                    const solePayer = solePayerId ? bill.people.find(p => p.id === solePayerId) : null
+                    if (solePayer) payerText = `Paid by ${solePayer.name}`
+                  }
+
+                  return (
+                    <div
+                      key={bill.id}
+                      className="p-3 rounded-xl bg-muted/50 border border-border/50 hover:border-primary/30 transition-all duration-200 animate-in fade-in slide-in-from-left-2"
+                      style={{ animationDelay: `${index * 40}ms` }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <button
+                          onClick={() => onLoadBill(bill.id)}
+                          className="flex-1 text-left hover:opacity-85 transition-opacity"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                              <IndianRupee className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-foreground flex items-center text-sm">
+                                  <IndianRupee className="h-3.5 w-3.5 mr-0.5" />
+                                  {bill.grandTotal.toFixed(2)}
+                                </span>
+                                <span className="text-[10px] bg-muted border border-border text-muted-foreground px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <Users className="h-2.5 w-2.5" />
+                                  {bill.people.length} people
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
+                                <span>{formatDate(bill.createdAt)}</span>
+                                {payerText && <><span>·</span><span className="truncate">{payerText}</span></>}
+                              </div>
+                            </div>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDeleteBill(bill.id) }}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-muted-foreground hover:text-rose-600 transition-all cursor-pointer shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ───────── Tab: New Bill ───────── */}
+        {groupDetailTab === "new-bill" && (
+          <Card className="border-border/50 shadow-md animate-in fade-in duration-200">
+            <CardContent className="p-6">
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/30 flex items-center justify-center mx-auto shadow-sm">
+                  <Receipt className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-base">Start a New Bill</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    This will load all <span className="font-semibold text-foreground">{activeGroup.members.length} member{activeGroup.members.length !== 1 ? "s" : ""}</span> from <span className="font-semibold text-foreground">{activeGroup.name}</span> into the bill splitter.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    The bill will be automatically saved to this group's history.
+                  </p>
+                </div>
+                <Button
+                  className="w-full h-12 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer"
+                  onClick={() => onSelectGroup(activeGroup.id)}
+                  disabled={activeGroup.members.length === 0}
+                >
+                  <Receipt className="h-4 w-4 mr-2" />
+                  {activeGroup.members.length === 0 ? "Add members first" : "Start Bill with Group"}
+                </Button>
+                {activeGroup.members.length === 0 && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setGroupDetailTab("members")}
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Go to Members
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     )
   }
@@ -579,11 +707,7 @@ export function GroupsView({
                     expandedGroupId === group.id ? "rounded-t-xl" : "rounded-xl"
                   }`}
                   onClick={() => {
-                    if (group.members.length >= 6) {
-                      setActiveDetailGroupId(group.id)
-                    } else {
-                      setExpandedGroupId(expandedGroupId === group.id ? null : group.id)
-                    }
+                    setActiveDetailGroupId(group.id)
                   }}
                 >
                   <div className="flex items-center gap-3">
