@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { User, Calendar, Hash, ShieldCheck, Check, LogOut, Loader2, Sparkles, Coins, Users, Sun, Moon } from "lucide-react"
+import { useState } from "react"
+import { User, Calendar, Hash, ShieldCheck, Check, LogOut, Loader2, Sparkles, Coins, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase } from "@/lib/supabase"
-import { useTheme } from "next-themes"
 
 interface ProfileViewProps {
   userSession: { id: string; username: string; full_name: string }
@@ -19,13 +18,6 @@ export function ProfileView({ userSession, onProfileUpdate, totalGroups, totalBi
   const [isUpdating, setIsUpdating] = useState(false)
   const [success, setSuccess] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
-
-  const { setTheme, resolvedTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const getInitials = (name: string) => {
     return name
@@ -218,37 +210,6 @@ export function ProfileView({ userSession, onProfileUpdate, totalGroups, totalBi
             </div>
           </div>
 
-          {/* Appearance Settings Card */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200/90 dark:border-slate-800/90 shadow-lg shadow-slate-100/50 dark:shadow-none space-y-4">
-            <h3 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-              {mounted && resolvedTheme === "dark" ? (
-                <Moon className="h-4 w-4 text-emerald-600 dark:text-emerald-450" />
-              ) : (
-                <Sun className="h-4 w-4 text-emerald-600" />
-              )}
-              Appearance Settings
-            </h3>
-            
-            <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200/40 dark:border-slate-800/40 rounded-xl">
-              <div>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Dark Mode</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500">Toggle dark or light theme</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  mounted && resolvedTheme === "dark" ? "bg-emerald-600" : "bg-slate-200"
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    mounted && resolvedTheme === "dark" ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
 
           {/* security and cloud status */}
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200/90 dark:border-slate-800/90 shadow-lg shadow-slate-100/50 dark:shadow-none space-y-3">
