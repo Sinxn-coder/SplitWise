@@ -340,11 +340,13 @@ export function GroupsView({
             groups.map((group) => (
               <div
                 key={group.id}
-                className="rounded-xl border border-border/50 overflow-hidden bg-card"
+                className="rounded-xl border border-border/50 bg-card"
               >
                 {/* Group Header */}
                 <div
-                  className="p-3 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors"
+                  className={`p-3 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors ${
+                    expandedGroupId === group.id ? "rounded-t-xl" : "rounded-xl"
+                  }`}
                   onClick={() =>
                     setExpandedGroupId(expandedGroupId === group.id ? null : group.id)
                   }
