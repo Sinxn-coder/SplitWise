@@ -31,6 +31,7 @@ export interface Group {
   members: Person[]
   color: string
   createdAt: number
+  ownerId?: string
   shareCode?: string
   synced?: boolean
 }
@@ -188,7 +189,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       const deleteGroupIds: string[] = storedDeleteGroups ? JSON.parse(storedDeleteGroups) : []
       if (deleteGroupIds.length > 0) {
         console.log(`[Sync] Processing pending group deletions: ${deleteGroupIds.length}`)
-        const { error } = await supabase.from("groups").delete().in("id", deleteGroupIds)
+        const { error } = await supabase.from("groups").delete().in("id", deleteGroupIds).eq("user_id", currentUserId)
         if (!error) {
           localStorage.removeItem(pendingDeleteGroupsKey)
         }
@@ -215,7 +216,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
             color: group.color,
             created_at: new Date(group.createdAt).toISOString(),
             share_code: group.shareCode,
-            user_id: currentUserId
+            user_id: group.ownerId || currentUserId
           })
 
           if (error) {
@@ -337,6 +338,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
           members: g.members || [],
           color: g.color,
           createdAt: new Date(g.created_at).getTime(),
+          ownerId: g.user_id,
           shareCode: g.share_code,
           synced: true
         }))
@@ -490,7 +492,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
                 color: group.color,
                 created_at: new Date(group.createdAt).toISOString(),
                 share_code: group.shareCode,
-                user_id: userSession.id
+                user_id: group.ownerId || userSession.id
               })
               
               if (!error) {
@@ -888,6 +890,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       members: initialMembers,
       color: randomColor,
       createdAt: Date.now(),
+      ownerId: userSession?.id,
       shareCode: shareCode,
       synced: false
     }
@@ -902,6 +905,12 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   }, [groups, saveGroupsToStorage])
 
   const deleteGroup = useCallback((id: string) => {
+    const group = groups.find((g) => g.id === id)
+    if (!userSession || !group || group.ownerId !== userSession.id) {
+      console.warn("Only the group creator can delete this group.")
+      return
+    }
+
     if (userSession) {
       addPendingDeleteGroupId(id, userSession.id)
     }
@@ -915,7 +924,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       ;(async () => {
         if (navigator.onLine) {
           try {
-            const { error } = await supabase.from("groups").delete().eq("id", id)
+            const { error } = await supabase.from("groups").delete().eq("id", id).eq("user_id", userSession.id)
             if (!error) {
               removePendingDeleteGroupIds([id], userSession.id)
               return
@@ -1021,6 +1030,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
         members: updatedMembers,
         color: groupData.color,
         createdAt: new Date(groupData.created_at).getTime(),
+        ownerId: groupData.user_id,
         shareCode: groupData.share_code
       }
 

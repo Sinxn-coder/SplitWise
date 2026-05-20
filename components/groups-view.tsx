@@ -22,6 +22,7 @@ import type { Group, Person } from "@/hooks/use-expense-data"
 
 interface GroupsViewProps {
   groups: Group[]
+  currentUserId: string
   onAddGroup: (name: string, addSelf: boolean) => string
   onUpdateGroup: (id: string, updates: Partial<Omit<Group, "id">>) => void
   onDeleteGroup: (id: string) => void
@@ -35,6 +36,7 @@ interface GroupsViewProps {
 
 export function GroupsView({
   groups,
+  currentUserId,
   onAddGroup,
   onUpdateGroup,
   onDeleteGroup,
@@ -160,6 +162,7 @@ export function GroupsView({
   }
 
   const activeGroup = groups.find(g => g.id === activeDetailGroupId)
+  const canDeleteActiveGroup = activeGroup?.ownerId === currentUserId
 
   if (activeGroup) {
     return (
@@ -199,10 +202,10 @@ export function GroupsView({
                   <Edit3 className="h-3.5 w-3.5 text-slate-400" />
                   Rename Group
                 </button>
-                <div className="h-px bg-slate-100 dark:bg-slate-800 mx-3" />
+                {canDeleteActiveGroup && <div className="h-px bg-slate-100 dark:bg-slate-800 mx-3" />}
                 
                 {/* Delete Group */}
-                {confirmDeleteGroupId === activeGroup.id ? (
+                {canDeleteActiveGroup && (confirmDeleteGroupId === activeGroup.id ? (
                   <div className="px-4 py-3 space-y-2">
                     <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wide">Are you sure?</p>
                     <div className="flex gap-2">
@@ -233,7 +236,7 @@ export function GroupsView({
                     <Trash2 className="h-3.5 w-3.5" />
                     Delete Group
                   </button>
-                )}
+                ))}
               </div>
             )}
           </div>
@@ -673,10 +676,10 @@ export function GroupsView({
                             Rename Group
                           </button>
 
-                          <div className="h-px bg-slate-100 mx-3" />
+                          {group.ownerId === currentUserId && <div className="h-px bg-slate-100 mx-3" />}
 
                           {/* Delete — with confirm step */}
-                          {confirmDeleteGroupId === group.id ? (
+                          {group.ownerId === currentUserId && (confirmDeleteGroupId === group.id ? (
                             <div className="px-4 py-3 space-y-2">
                               <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wide">Are you sure?</p>
                               <div className="flex gap-2">
@@ -706,7 +709,7 @@ export function GroupsView({
                               <Trash2 className="h-3.5 w-3.5" />
                               Delete Group
                             </button>
-                          )}
+                          ))}
                         </div>
                       )}
                     </div>

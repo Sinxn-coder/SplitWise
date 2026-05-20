@@ -359,6 +359,7 @@ export function ExpenseSplitter({
               <div className="animate-in fade-in slide-in-from-bottom-3 duration-300">
                 <GroupsView
                   groups={groups}
+                  currentUserId={userSession.id}
                   onAddGroup={addGroup}
                   onUpdateGroup={updateGroup}
                   onDeleteGroup={deleteGroup}
