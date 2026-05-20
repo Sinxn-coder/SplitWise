@@ -33,6 +33,7 @@ interface FinalCalculationStepProps {
   onReset: () => void
   onSaveBill: () => void
   isGroupBill?: boolean
+  isHistoryBill?: boolean
 }
 
 export function FinalCalculationStep({
@@ -46,6 +47,7 @@ export function FinalCalculationStep({
   onReset,
   onSaveBill,
   isGroupBill = false,
+  isHistoryBill = false,
 }: FinalCalculationStepProps) {
   const splits = calculateSplits()
   const owes = calculateOwes()
@@ -564,19 +566,32 @@ export function FinalCalculationStep({
           </div>
         )}
 
+        {/* Auto-saved notice for history bills (personal context) */}
+        {isHistoryBill && !isGroupBill && (
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/30 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+              <Check className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Bill auto-saved to history</p>
+              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-500/80 mt-0.5">Any changes you make are automatically saved back to your history</p>
+            </div>
+          </div>
+        )}
+
         <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-between border-t border-border/40">
           <Button variant="outline" onClick={onBack}>
             Back
           </Button>
           <div className="flex gap-2">
-            {!isGroupBill && (
+            {!isGroupBill && !isHistoryBill && (
               <Button variant="secondary" onClick={handleSaveAndReset} className="flex items-center gap-2">
                 Save &amp; New Bill
               </Button>
             )}
             <Button variant="destructive" onClick={onReset} className="flex items-center gap-2">
               <RotateCcw className="h-4 w-4" />
-              {isGroupBill ? "Done" : "Reset"}
+              {(isGroupBill || isHistoryBill) ? "Done" : "Reset"}
             </Button>
           </div>
         </div>

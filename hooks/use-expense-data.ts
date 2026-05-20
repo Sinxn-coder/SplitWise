@@ -792,10 +792,21 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   }, [])
 
   // Bill History Operations (Saved Forever)
-  const saveBill = useCallback((groupId?: string, groupName?: string) => {
+  const saveBill = useCallback((groupId?: string, groupName?: string, billId?: string) => {
+    const isEditing = !!billId
+    const finalId = billId || crypto.randomUUID()
+    
+    let originalCreatedAt = Date.now()
+    if (isEditing) {
+      const existingBill = savedBills.find((b) => b.id === billId)
+      if (existingBill) {
+        originalCreatedAt = existingBill.createdAt
+      }
+    }
+
     const bill: SavedBill = {
-      id: crypto.randomUUID(),
-      createdAt: Date.now(),
+      id: finalId,
+      createdAt: originalCreatedAt,
       people: [...people],
       products: [...products],
       paidBy,
@@ -816,7 +827,13 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
         console.error("Failed to parse saved bills:", e)
       }
     }
-    bills.unshift(bill)
+
+    if (isEditing) {
+      bills = bills.map((b) => (b.id === billId ? bill : b))
+    } else {
+      bills.unshift(bill)
+    }
+
     localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(bills))
     setSavedBills(bills)
 
@@ -852,7 +869,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     }
 
     return bill.id
-  }, [people, products, paidBy, payments, userSession, BILLS_STORAGE_KEY])
+  }, [people, products, paidBy, payments, userSession, BILLS_STORAGE_KEY, savedBills])
 
   const getSavedBills = useCallback((): SavedBill[] => {
     return savedBills

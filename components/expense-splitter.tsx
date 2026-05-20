@@ -35,6 +35,7 @@ export function ExpenseSplitter({
   // Track active group context so bills get tagged with groupId/groupName
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [activeGroupName, setActiveGroupName] = useState<string | null>(null)
+  const [activeBillId, setActiveBillId] = useState<string | null>(null)
   
   const {
     people,
@@ -152,18 +153,22 @@ export function ExpenseSplitter({
 
   const handleReset = () => {
     const wasGroupBill = !!activeGroupId
+    const wasHistoryBill = !!activeBillId
     resetAll()
     setCurrentStep(1)
     setActiveGroupId(null)
     setActiveGroupName(null)
+    setActiveBillId(null)
     // If done with a group bill, go back to groups tab
     if (wasGroupBill) {
       setActiveTab("groups")
+    } else if (wasHistoryBill) {
+      setActiveTab("history")
     }
   }
 
   const handleSaveBill = () => {
-    saveBill(activeGroupId ?? undefined, activeGroupName ?? undefined)
+    saveBill(activeGroupId ?? undefined, activeGroupName ?? undefined, activeBillId ?? undefined)
     // If created from a group context, go back to groups tab so user sees it in Bills tab
     if (activeGroupId) {
       setActiveTab("groups")
@@ -172,11 +177,24 @@ export function ExpenseSplitter({
     }
     setActiveGroupId(null)
     setActiveGroupName(null)
+    setActiveBillId(null)
     setCurrentStep(1)
   }
 
   const handleLoadBill = (billId: string) => {
     loadBill(billId)
+    setActiveBillId(billId)
+    
+    // Check if the loaded bill is a group bill
+    const bill = savedBills.find((b) => b.id === billId)
+    if (bill?.groupId) {
+      setActiveGroupId(bill.groupId)
+      setActiveGroupName(bill.groupName ?? null)
+    } else {
+      setActiveGroupId(null)
+      setActiveGroupName(null)
+    }
+    
     setCurrentStep(5)
     setActiveTab("splitter")
   }
@@ -190,6 +208,7 @@ export function ExpenseSplitter({
     setCurrentStep(1)
     setActiveGroupId(null)
     setActiveGroupName(null)
+    setActiveBillId(null)
   }
 
   const handleInstallApp = async () => {
@@ -459,9 +478,9 @@ export function ExpenseSplitter({
                       grandTotal={grandTotal}
                       onBack={() => setCurrentStep(3)}
                       onContinue={() => {
-                        // Auto-save immediately when entering final step in group context
-                        if (activeGroupId) {
-                          saveBill(activeGroupId, activeGroupName ?? undefined)
+                        // Auto-save immediately when entering final step in group context or history bill
+                        if (activeGroupId || activeBillId) {
+                          saveBill(activeGroupId ?? undefined, activeGroupName ?? undefined, activeBillId ?? undefined)
                         }
                         setCurrentStep(5)
                       }}
@@ -480,6 +499,7 @@ export function ExpenseSplitter({
                       onReset={handleReset}
                       onSaveBill={handleSaveBill}
                       isGroupBill={!!activeGroupId}
+                      isHistoryBill={!!activeBillId}
                     />
                   )}
                 </div>
