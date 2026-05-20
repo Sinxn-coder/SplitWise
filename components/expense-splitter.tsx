@@ -11,6 +11,7 @@ import { FinalCalculationStep } from "@/components/steps/final-calculation-step"
 import { SavedBills } from "@/components/saved-bills"
 import { GroupsView } from "@/components/groups-view"
 import { ProfileView } from "@/components/profile-view"
+import { AppTutorial } from "@/components/app-tutorial"
 import { useExpenseData, SavedBill } from "@/hooks/use-expense-data"
 import { Button } from "@/components/ui/button"
 
@@ -29,6 +30,8 @@ export function ExpenseSplitter({
   const [showPwaPopup, setShowPwaPopup] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
   const [showSyncedToast, setShowSyncedToast] = useState(false)
+  const [hasCompletedTutorial, setHasCompletedTutorial] = useState(false)
+  const [showTutorial, setShowTutorial] = useState(false)
   
   const {
     people,
@@ -68,6 +71,8 @@ export function ExpenseSplitter({
     grandTotal,
   } = useExpenseData(userSession)
 
+  const tutorialStorageKey = `homiepay-tutorial-complete-${userSession.id}`
+
   // Register PWA service worker on mount & capture install prompt
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -91,6 +96,18 @@ export function ExpenseSplitter({
     }
   }, [])
 
+  // Show the first-run tutorial after login. PWA install prompts stay hidden until this is complete.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const completed = localStorage.getItem(tutorialStorageKey) === "true"
+    setHasCompletedTutorial(completed)
+    setShowTutorial(!completed)
+    if (!completed) {
+      setShowPwaPopup(false)
+    }
+  }, [tutorialStorageKey])
+
   // Track online/offline state for real-time indicator
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -111,8 +128,10 @@ export function ExpenseSplitter({
     }
   }, [])
 
-  // Trigger PWA Install Steps Popup when opened in browser (non-standalone)
+  // Trigger PWA Install Steps Popup only after the onboarding tutorial is complete.
   useEffect(() => {
+    if (!hasCompletedTutorial || showTutorial) return
+
     if (typeof window !== "undefined") {
       const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone
       if (!isStandalone) {
@@ -126,7 +145,7 @@ export function ExpenseSplitter({
         }
       }
     }
-  }, [])
+  }, [hasCompletedTutorial, showTutorial])
 
   const handleReset = () => {
     resetAll()
@@ -160,6 +179,12 @@ export function ExpenseSplitter({
     if (outcome === "accepted") {
       setInstallPrompt(null)
     }
+  }
+
+  const handleCompleteTutorial = () => {
+    localStorage.setItem(tutorialStorageKey, "true")
+    setHasCompletedTutorial(true)
+    setShowTutorial(false)
   }
 
   if (!isLoaded) {
@@ -206,7 +231,7 @@ export function ExpenseSplitter({
             )}
 
             {/* Install PWA Button */}
-            {installPrompt && (
+            {installPrompt && hasCompletedTutorial && (
               <Button
                 variant="outline"
                 size="sm"
@@ -510,6 +535,13 @@ export function ExpenseSplitter({
         </div>
       )}
 
+      {showTutorial && (
+        <AppTutorial
+          userName={userSession.full_name || userSession.username}
+          onComplete={handleCompleteTutorial}
+        />
+      )}
+
       {/* Footer Branding (Nexlyte) */}
       <footer className="w-full py-8 border-t border-border/10 flex items-center justify-center mt-8 pb-24 md:pb-8">
         <a 
@@ -534,7 +566,7 @@ export function ExpenseSplitter({
       </footer>
 
       {/* PWA Floating Installation Popup & Steps */}
-      {showPwaPopup && (
+      {showPwaPopup && hasCompletedTutorial && (
         <div className="fixed bottom-20 md:bottom-6 right-6 left-6 md:left-auto md:w-96 z-50 p-4 rounded-2xl bg-card border border-border/80 shadow-2xl animate-in slide-in-from-bottom duration-300">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
