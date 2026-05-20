@@ -190,13 +190,22 @@ export function GroupsView({
               size="sm"
               variant="outline"
               onClick={() => {
-                setShowAddGroup(true)
+                setShowAddGroup(!showAddGroup)
                 setActiveAddTab("create")
               }}
               className="hidden sm:flex"
             >
-              <Plus className="h-4 w-4 mr-1" />
-              Add or Join Group
+              {showAddGroup ? (
+                <>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add or Join Group
+                </>
+              )}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -204,6 +213,123 @@ export function GroupsView({
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
+          {showAddGroup && (
+            <div className="border border-border/60 rounded-xl p-4 bg-muted/20 space-y-4 animate-in fade-in slide-in-from-top-3 duration-300">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <Users className="h-4 w-4 text-emerald-600" />
+                  {activeAddTab === "create" ? "Create New Group" : "Join via Share Code"}
+                </h4>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground rounded-lg"
+                  onClick={() => setShowAddGroup(false)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
+              {/* Tab Selector */}
+              <div className="flex bg-slate-100/80 border border-slate-200/50 p-1.5 rounded-2xl">
+                <button
+                  onClick={() => {
+                    setActiveAddTab("create")
+                    setJoinError("")
+                    setJoinSuccess("")
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                    activeAddTab === "create"
+                      ? "bg-white text-slate-800 shadow-sm border border-slate-200/20"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Create New Group
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAddTab("join")
+                    setJoinError("")
+                    setJoinSuccess("")
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                    activeAddTab === "join"
+                      ? "bg-white text-slate-800 shadow-sm border border-slate-200/20"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Join via Share Code
+                </button>
+              </div>
+
+              {activeAddTab === "create" ? (
+                <div className="space-y-4 pt-2">
+                  <Input
+                    placeholder="Enter group name (e.g., Roommates 2026)"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddGroup()
+                    }}
+                  />
+                  <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer pl-1">
+                    <input
+                      type="checkbox"
+                      checked={addSelfToGroup}
+                      onChange={(e) => setAddSelfToGroup(e.target.checked)}
+                      className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                    />
+                    Add me to this group
+                  </label>
+                  <Button
+                    className="w-full py-5 rounded-xl font-bold uppercase tracking-wider text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={handleAddGroup}
+                    disabled={!newGroupName.trim()}
+                  >
+                    Create Group
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4 pt-2">
+                  <Input
+                    placeholder="Enter 9-character code (e.g., HP-A4F9)"
+                    value={shareCodeInput}
+                    onChange={(e) => {
+                      setShareCodeInput(e.target.value.toUpperCase())
+                      setJoinError("")
+                    }}
+                    className="font-mono text-center tracking-widest text-sm font-black placeholder:font-sans placeholder:tracking-normal placeholder:text-xs uppercase"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleJoinGroup()
+                    }}
+                  />
+                  
+                  {joinError && (
+                    <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 p-3 rounded-xl text-center animate-in fade-in duration-200">
+                      {joinError}
+                    </p>
+                  )}
+
+                  {joinSuccess && (
+                    <p className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 p-3 rounded-xl text-center animate-in fade-in duration-200">
+                      {joinSuccess}
+                    </p>
+                  )}
+
+                  <Button
+                    className="w-full py-5 rounded-xl font-bold uppercase tracking-wider text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={handleJoinGroup}
+                    disabled={!shareCodeInput.trim() || isJoining}
+                  >
+                    {isJoining ? "Joining Workspace..." : "Join Group"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
           {groups.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
@@ -549,130 +675,25 @@ export function GroupsView({
               variant="outline"
               className="w-full"
               onClick={() => {
-                setShowAddGroup(true)
+                setShowAddGroup(!showAddGroup)
                 setActiveAddTab("create")
               }}
             >
-              <Plus className="h-4 w-4 mr-1" />
-              Add or Join Group
+              {showAddGroup ? (
+                <>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add or Join Group
+                </>
+              )}
             </Button>
           </div>
         </CardContent>
       </Card>
-
-      {/* Mobile/Desktop Combined Sheet */}
-      <MobileBottomSheet
-        isOpen={showAddGroup}
-        onClose={() => {
-          setShowAddGroup(false)
-          setNewGroupName("")
-          setShareCodeInput("")
-          setJoinError("")
-          setJoinSuccess("")
-          setActiveAddTab("create")
-        }}
-        title="Add Group"
-      >
-        <div className="space-y-4 pt-1">
-          {/* Tab Selector */}
-          <div className="flex bg-slate-100/80 border border-slate-200/50 p-1.5 rounded-2xl">
-            <button
-              onClick={() => {
-                setActiveAddTab("create")
-                setJoinError("")
-                setJoinSuccess("")
-              }}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                activeAddTab === "create"
-                  ? "bg-white text-slate-800 shadow-sm border border-slate-200/20"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Create New Group
-            </button>
-            <button
-              onClick={() => {
-                setActiveAddTab("join")
-                setJoinError("")
-                setJoinSuccess("")
-              }}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                activeAddTab === "join"
-                  ? "bg-white text-slate-800 shadow-sm border border-slate-200/20"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Join via Share Code
-            </button>
-          </div>
-
-          {activeAddTab === "create" ? (
-            <div className="space-y-4 pt-2">
-              <Input
-                placeholder="Enter group name (e.g., Roommates 2026)"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleAddGroup()
-                }}
-              />
-              <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer pl-1">
-                <input
-                  type="checkbox"
-                  checked={addSelfToGroup}
-                  onChange={(e) => setAddSelfToGroup(e.target.checked)}
-                  className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
-                />
-                Add me to this group
-              </label>
-              <Button
-                className="w-full py-5 rounded-xl font-bold uppercase tracking-wider text-xs"
-                onClick={handleAddGroup}
-                disabled={!newGroupName.trim()}
-              >
-                Create Group
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4 pt-2">
-              <Input
-                placeholder="Enter 9-character code (e.g., HP-A4F9)"
-                value={shareCodeInput}
-                onChange={(e) => {
-                  setShareCodeInput(e.target.value.toUpperCase())
-                  setJoinError("")
-                }}
-                className="font-mono text-center tracking-widest text-sm font-black placeholder:font-sans placeholder:tracking-normal placeholder:text-xs uppercase"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleJoinGroup()
-                }}
-              />
-              
-              {joinError && (
-                <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 p-3 rounded-xl text-center animate-in fade-in duration-200">
-                  {joinError}
-                </p>
-              )}
-
-              {joinSuccess && (
-                <p className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 p-3 rounded-xl text-center animate-in fade-in duration-200">
-                  {joinSuccess}
-                </p>
-              )}
-
-              <Button
-                className="w-full py-5 rounded-xl font-bold uppercase tracking-wider text-xs"
-                onClick={handleJoinGroup}
-                disabled={!shareCodeInput.trim() || isJoining}
-              >
-                {isJoining ? "Joining Workspace..." : "Join Group"}
-              </Button>
-            </div>
-          )}
-        </div>
-      </MobileBottomSheet>
     </div>
   )
 }
