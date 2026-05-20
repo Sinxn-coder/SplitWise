@@ -4,14 +4,23 @@
 -- Run this in your Supabase Dashboard SQL Editor (https://supabase.com).
 -- ─────────────────────────────────────────────────────────────────────────────
 
--- 1. Create Users Table (Username and Password-based)
+-- 1. Create Users Table (Username, Password, and Security Question-based)
 create table if not exists public.users (
   id uuid default gen_random_uuid() primary key,
   username text not null unique,
-  password_hash text not null, -- Stores client-side hashed SHA-256 passwords for maximum security
+  password_hash text not null,          -- SHA-256 hashed client-side for maximum security
   full_name text not null,
+  security_question text,               -- One of the 6 predefined recovery questions
+  security_answer_hash text,            -- SHA-256 hash of the answer (case-insensitive)
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION: Run this if you already have the users table from an older version
+-- ─────────────────────────────────────────────────────────────────────────────
+alter table public.users
+  add column if not exists security_question text,
+  add column if not exists security_answer_hash text;
 
 -- 2. Create Groups Table (Associated with an authenticated user)
 create table if not exists public.groups (

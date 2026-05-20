@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { Wallet, ArrowRight, Sparkles, DollarSign, Send, Landmark, Coins, LogOut } from "lucide-react"
 import { LoginPage } from "@/components/login-page"
+import { SecurityQuestionModal } from "@/components/security-question-modal"
+import { supabase } from "@/lib/supabase"
 
 // Import the main container dynamically with SSR disabled to make loading instantaneous
 const ExpenseSplitter = dynamic(
@@ -16,14 +18,34 @@ export default function Home() {
   const [isExiting, setIsExiting] = useState(false)
   const [userSession, setUserSession] = useState<{ id: string; username: string; full_name: string } | null>(null)
   const [animationDone, setAnimationDone] = useState(false)
+  const [needsSecurityQuestion, setNeedsSecurityQuestion] = useState(false)
+
+  // Check if a logged-in user needs to set a security question
+  const checkSecurityQuestion = async (userId: string) => {
+    try {
+      if (!navigator.onLine) return // skip check offline
+      const { data, error } = await supabase
+        .from("users")
+        .select("security_question")
+        .eq("id", userId)
+        .maybeSingle()
+      if (!error && data && !data.security_question) {
+        setNeedsSecurityQuestion(true)
+      }
+    } catch (e) {
+      // silently skip — don't block the user if DB check fails
+    }
+  }
 
   // Recover active session from localStorage on mount
   useEffect(() => {
     const cachedSession = localStorage.getItem("homiepay-user-session")
     if (cachedSession) {
       try {
-        setUserSession(JSON.parse(cachedSession))
+        const session = JSON.parse(cachedSession)
+        setUserSession(session)
         setIsStarted(true) // Automatically bypass landing page if logged in!
+        checkSecurityQuestion(session.id)
       } catch (e) {
         localStorage.removeItem("homiepay-user-session")
       }
@@ -89,6 +111,7 @@ export default function Home() {
             <LoginPage onSuccess={(session) => {
               setUserSession(session);
               localStorage.setItem("homiepay-user-session", JSON.stringify(session));
+              checkSecurityQuestion(session.id);
             }} />
           ) : (
             <ExpenseSplitter 
@@ -97,6 +120,15 @@ export default function Home() {
                 setUserSession(updatedSession);
                 localStorage.setItem("homiepay-user-session", JSON.stringify(updatedSession));
               }}
+            />
+          )}
+
+          {/* Security Question Setup Modal — shown for users who haven't set one yet */}
+          {userSession && needsSecurityQuestion && (
+            <SecurityQuestionModal
+              userId={userSession.id}
+              fullName={userSession.full_name}
+              onComplete={() => setNeedsSecurityQuestion(false)}
             />
           )}
         </div>

@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { Wallet, User, Lock, ArrowRight, Sparkles, AlertCircle, Eye, EyeOff, CheckCircle } from "lucide-react"
+import { Wallet, User, Lock, ArrowRight, Sparkles, AlertCircle, Eye, EyeOff, CheckCircle, Mail, ChevronDown, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase } from "@/lib/supabase"
+import { SECURITY_QUESTIONS } from "@/components/security-question-modal"
 
 interface LoginPageProps {
   onSuccess: (session: { id: string; username: string; full_name: string }) => void
@@ -20,19 +21,54 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
   const [successMsg, setSuccessMsg] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
+  // Security question state (registration only)
+  const [securityQuestion, setSecurityQuestion] = useState(SECURITY_QUESTIONS[0])
+  const [securityAnswer, setSecurityAnswer] = useState("")
+
+  // Track failed login to show "Forgot password?" option
+  const [loginFailed, setLoginFailed] = useState(false)
+  const [failedUsername, setFailedUsername] = useState("")
+
   // Secure browser-native SHA-256 password hashing
-  const hashPassword = async (pwd: string): Promise<string> => {
+  const hashText = async (text: string): Promise<string> => {
     const encoder = new TextEncoder()
-    const data = encoder.encode(pwd)
+    const data = encoder.encode(text)
     const hashBuffer = await crypto.subtle.digest("SHA-256", data)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     return hashArray.map(b => b.toString(16).padStart(2, "0")).join("")
+  }
+
+  // Build the forgot-password mailto link with a pre-filled template
+  const buildForgotPasswordLink = (uname: string) => {
+    const subject = encodeURIComponent(`[HomiePay] Password Reset Request — @${uname}`)
+    const body = encodeURIComponent(
+`Hello HomiePay Support,
+
+I am unable to access my account and would like to request a password reset.
+
+Account Details:
+  Username: @${uname}
+
+Please help me regain access to my account. I understand that my identity may need to be verified before a reset can be processed.
+
+Thank you,
+${uname}`
+    )
+    return `mailto:nexlytestudio@gmail.com?subject=${subject}&body=${body}`
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg("")
     setSuccessMsg("")
+    setLoginFailed(false)
+
+    // Internet connection check for authentication
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      setErrorMsg("An active internet connection is required to login or register. Please connect to the internet and try again.")
+      return
+    }
+
     setIsLoading(true)
 
     // Form Validation
@@ -50,12 +86,19 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
     }
 
     try {
-      const hashedPassword = await hashPassword(password)
+      const hashedPassword = await hashText(password)
 
       if (activeTab === "register") {
         const cleanFullName = fullName.trim()
         if (!cleanFullName || cleanFullName.length < 2) {
           setErrorMsg("Please enter your full name.")
+          setIsLoading(false)
+          return
+        }
+
+        const cleanAnswer = securityAnswer.trim()
+        if (!cleanAnswer || cleanAnswer.length < 2) {
+          setErrorMsg("Please provide an answer to your security question.")
           setIsLoading(false)
           return
         }
@@ -75,13 +118,18 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
           return
         }
 
-        // 2. Insert new user profile
+        // 2. Hash the security answer
+        const hashedAnswer = await hashText(cleanAnswer.toLowerCase())
+
+        // 3. Insert new user profile with security question
         const { data: newUser, error: registerErr } = await supabase
           .from("users")
           .insert({
             username: cleanUsername,
             password_hash: hashedPassword,
             full_name: cleanFullName,
+            security_question: securityQuestion,
+            security_answer_hash: hashedAnswer,
           })
           .select("id, username, full_name")
           .single()
@@ -103,7 +151,9 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
         if (loginErr) throw loginErr
 
         if (!user || user.password_hash !== hashedPassword) {
-          setErrorMsg("Invalid username or password. Please try again.")
+          setLoginFailed(true)
+          setFailedUsername(cleanUsername)
+          setErrorMsg("Wrong password. Please check and try again.")
           setIsLoading(false)
           return
         }
@@ -155,6 +205,7 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
               setActiveTab("login")
               setErrorMsg("")
               setSuccessMsg("")
+              setLoginFailed(false)
             }}
             className={`py-2 text-xs font-extrabold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
               activeTab === "login"
@@ -169,6 +220,7 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
               setActiveTab("register")
               setErrorMsg("")
               setSuccessMsg("")
+              setLoginFailed(false)
             }}
             className={`py-2 text-xs font-extrabold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
               activeTab === "register"
@@ -182,9 +234,33 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
 
         {/* Alert/Status Banners */}
         {errorMsg && (
-          <div className="flex items-center gap-2 p-3.5 bg-rose-50 border border-rose-150 rounded-xl text-rose-700 text-xs font-semibold mb-5 animate-in fade-in duration-300">
-            <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
-            <span>{errorMsg}</span>
+          <div className="mb-5 space-y-2 animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 p-3.5 bg-rose-50 border border-rose-150 rounded-xl text-rose-700 text-xs font-semibold">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
+              <span>{errorMsg}</span>
+            </div>
+
+            {/* Forgot Password link — only shown after a failed login */}
+            {loginFailed && activeTab === "login" && (
+              <div className="flex items-center gap-2 p-3.5 bg-amber-50 border border-amber-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+                <Mail className="h-4 w-4 shrink-0 text-amber-600" />
+                <div className="flex-1">
+                  <p className="text-[10px] text-amber-700 font-semibold leading-snug">
+                    Forgot your password?
+                  </p>
+                  <a
+                    href={buildForgotPasswordLink(failedUsername)}
+                    className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-800 underline underline-offset-2 hover:text-amber-900 mt-0.5 cursor-pointer"
+                  >
+                    <Mail className="h-3 w-3" />
+                    Email us to reset your password →
+                  </a>
+                  <p className="text-[9px] text-amber-600 mt-0.5">
+                    Tap the link above to open your email app with a ready-to-send reset request.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -227,7 +303,10 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
                 type="text"
                 placeholder="e.g. johndoe"
                 value={username}
-                onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))} // alphanumeric only
+                onChange={(e) => {
+                  setUsername(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))
+                  setLoginFailed(false) // reset forgot link if they re-type username
+                }}
                 disabled={isLoading}
                 required
                 className="pl-9.5 py-5.5 rounded-xl border-slate-200 focus-visible:ring-emerald-500 text-xs lowercase"
@@ -259,6 +338,65 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
               </button>
             </div>
           </div>
+
+          {/* Security Question section — registration only */}
+          {activeTab === "register" && (
+            <div className="space-y-3 pt-1">
+              {/* Divider with label */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-px bg-slate-100" />
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-100">
+                  <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                  <span className="text-[9px] font-extrabold text-emerald-700 uppercase tracking-widest">Account Recovery</span>
+                </div>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
+
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                Choose a security question and answer. This helps you recover your account if you ever forget your password.
+              </p>
+
+              {/* Question Dropdown */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">
+                  Security Question
+                </label>
+                <div className="relative">
+                  <select
+                    value={securityQuestion}
+                    onChange={(e) => setSecurityQuestion(e.target.value)}
+                    disabled={isLoading}
+                    className="w-full appearance-none pl-4 pr-9 py-3.5 text-xs font-semibold text-slate-700 rounded-xl border border-slate-200 bg-slate-50/60 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent cursor-pointer transition-all"
+                  >
+                    {SECURITY_QUESTIONS.map((q) => (
+                      <option key={q} value={q}>{q}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Answer Input */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">
+                  Your Answer
+                </label>
+                <Input
+                  type="text"
+                  placeholder="Type your answer..."
+                  value={securityAnswer}
+                  onChange={(e) => setSecurityAnswer(e.target.value)}
+                  disabled={isLoading}
+                  required={activeTab === "register"}
+                  autoComplete="off"
+                  className="py-5 rounded-xl border-slate-200 focus-visible:ring-emerald-500 text-xs"
+                />
+                <p className="text-[9px] text-slate-400">
+                  Your answer is encrypted and stored securely. Capitalisation is ignored when checking.
+                </p>
+              </div>
+            </div>
+          )}
 
           <Button
             type="submit"

@@ -95,7 +95,6 @@ export function ProfileView({ userSession, onProfileUpdate, totalGroups, totalBi
             </div>
           </div>
           <p className="text-xs text-emerald-600 font-bold tracking-wide">@{userSession.username}</p>
-          <p className="text-[10px] text-slate-400 font-medium">User ID: <span className="font-mono">{userSession.id}</span></p>
         </div>
       </div>
 
@@ -215,10 +214,10 @@ export function ProfileView({ userSession, onProfileUpdate, totalGroups, totalBi
           <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-lg shadow-slate-100/50 space-y-3">
             <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
-              Security Check
+              Your Privacy & Security
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Your session is secured using standard SHA-256 client hashing. All group sheets and ledger backups are securely partitioned in your own database container.
+              Your account is fully protected. Your password is securely encrypted, and all your groups, shared bills, and expenses are safely backed up to the cloud.
             </p>
             <Button
               onClick={handleLogout}

@@ -32,6 +32,7 @@ export interface Group {
   color: string
   createdAt: number
   shareCode?: string
+  synced?: boolean
 }
 
 export interface SavedBill {
@@ -45,6 +46,7 @@ export interface SavedBill {
   grandTotal: number
   groupId?: string
   groupName?: string
+  synced?: boolean
 }
 
 export interface ExpenseData {
@@ -121,7 +123,139 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     }
 
     setIsLoaded(true)
+    setIsLoaded(true)
   }, [userSession, STORAGE_KEY, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY])
+
+  // Reconcile pending offline changes with Supabase
+  const syncPendingData = useCallback(async () => {
+    if (!userSession || !navigator.onLine) return
+
+    const currentUserId = userSession.id
+    const pendingDeleteBillsKey = `homiepay-pending-delete-bills-${currentUserId}`
+    const pendingDeleteGroupsKey = `homiepay-pending-delete-groups-${currentUserId}`
+
+    // 1. Process Pending Deletes (Bills)
+    try {
+      const storedDeleteBills = localStorage.getItem(pendingDeleteBillsKey)
+      const deleteBillIds: string[] = storedDeleteBills ? JSON.parse(storedDeleteBills) : []
+      if (deleteBillIds.length > 0) {
+        console.log(`[Sync] Processing pending bill deletions: ${deleteBillIds.length}`)
+        const { error } = await supabase.from("bills").delete().in("id", deleteBillIds)
+        if (!error) {
+          localStorage.removeItem(pendingDeleteBillsKey)
+        }
+      }
+    } catch (e) {
+      console.error("Failed to sync pending bill deletions:", e)
+    }
+
+    // 2. Process Pending Deletes (Groups)
+    try {
+      const storedDeleteGroups = localStorage.getItem(pendingDeleteGroupsKey)
+      const deleteGroupIds: string[] = storedDeleteGroups ? JSON.parse(storedDeleteGroups) : []
+      if (deleteGroupIds.length > 0) {
+        console.log(`[Sync] Processing pending group deletions: ${deleteGroupIds.length}`)
+        const { error } = await supabase.from("groups").delete().in("id", deleteGroupIds)
+        if (!error) {
+          localStorage.removeItem(pendingDeleteGroupsKey)
+        }
+      }
+    } catch (e) {
+      console.error("Failed to sync pending group deletions:", e)
+    }
+
+    // 3. Process Pending Groups (Create/Update)
+    try {
+      const localGroupsStored = localStorage.getItem(GROUPS_STORAGE_KEY)
+      const localGroups: Group[] = localGroupsStored ? JSON.parse(localGroupsStored) : []
+      const unsyncedGroups = localGroups.filter(g => g.synced === false)
+
+      if (unsyncedGroups.length > 0) {
+        console.log(`[Sync] Uploading ${unsyncedGroups.length} offline groups to Supabase...`)
+        let succeededAny = false
+
+        for (const group of unsyncedGroups) {
+          const { error } = await supabase.from("groups").upsert({
+            id: group.id,
+            name: group.name,
+            members: group.members,
+            color: group.color,
+            created_at: new Date(group.createdAt).toISOString(),
+            share_code: group.shareCode,
+            user_id: currentUserId
+          })
+
+          if (error) {
+            console.error(`Offline sync failed for group ${group.id}:`, error)
+          } else {
+            group.synced = true
+            succeededAny = true
+          }
+        }
+
+        if (succeededAny) {
+          localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(localGroups))
+          setGroups([...localGroups])
+        }
+      }
+    } catch (e) {
+      console.error("Failed to sync pending groups:", e)
+    }
+
+    // 4. Process Pending Bills (Create/Update)
+    try {
+      const localBillsStored = localStorage.getItem(BILLS_STORAGE_KEY)
+      const localBills: SavedBill[] = localBillsStored ? JSON.parse(localBillsStored) : []
+      const unsyncedBills = localBills.filter(b => b.synced === false)
+
+      if (unsyncedBills.length > 0) {
+        console.log(`[Sync] Uploading ${unsyncedBills.length} offline bills to Supabase...`)
+        let succeededAny = false
+
+        for (const bill of unsyncedBills) {
+          const { error } = await supabase.from("bills").upsert({
+            id: bill.id,
+            user_id: currentUserId,
+            created_at: new Date(bill.createdAt).toISOString(),
+            people: bill.people,
+            products: bill.products,
+            paid_by: bill.paidBy,
+            payments: bill.payments,
+            grand_total: bill.grandTotal,
+            group_id: bill.groupId,
+            group_name: bill.groupName
+          })
+
+          if (error) {
+            console.error(`Offline sync failed for bill ${bill.id}:`, error)
+          } else {
+            bill.synced = true
+            succeededAny = true
+          }
+        }
+
+        if (succeededAny) {
+          localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(localBills))
+          setSavedBills([...localBills])
+        }
+      }
+    } catch (e) {
+      console.error("Failed to sync pending bills:", e)
+    }
+  }, [userSession, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY])
+
+  // Attach online/offline event listener to sync automatically when back online
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const handleOnline = () => {
+      console.log("[Network] Device is back online. Syncing pending data...")
+      syncPendingData()
+    }
+
+    window.addEventListener("online", handleOnline)
+    return () => window.removeEventListener("online", handleOnline)
+  }, [syncPendingData])
 
   // Fetch from Supabase and synchronize/merge when userSession is ready
   useEffect(() => {
@@ -168,7 +302,8 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
             members: g.members,
             color: g.color,
             createdAt: new Date(g.created_at).getTime(),
-            shareCode: g.share_code
+            shareCode: g.share_code,
+            synced: true
           }))
 
           const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
@@ -219,7 +354,8 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
             payments: b.payments,
             grandTotal: b.grand_total,
             groupId: b.group_id,
-            groupName: b.group_name
+            groupName: b.group_name,
+            synced: true
           }))
 
           const localStored = localStorage.getItem(BILLS_STORAGE_KEY)
@@ -245,10 +381,15 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       } catch (err) {
         console.warn("Supabase background sync paused. Fallback to Local Storage:", err)
       }
+
+      // Reconcile pending offline entries on successful initial mount load
+      if (navigator.onLine) {
+        syncPendingData()
+      }
     }
 
     loadAndSyncFromSupabase()
-  }, [userSession, isLoaded, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY])
+  }, [userSession, isLoaded, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY, syncPendingData])
 
   // Save to localStorage when active bill data changes
   useEffect(() => {
@@ -260,34 +401,33 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
 
   // Save groups helper
   const saveGroupsToStorage = useCallback(async (newGroups: Group[]) => {
-    setGroups(newGroups)
-    localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(newGroups))
-
-    if (!userSession) return
-
-    // Async cloud backup to Supabase
-    try {
-      for (const group of newGroups) {
-        // We only upsert the fields we want to update. We do NOT overwrite user_id, 
-        // we let Supabase handle it via RLS or keep the original owner.
-        const { error } = await supabase.from("groups").upsert({
-          id: group.id,
-          name: group.name,
-          members: group.members,
-          color: group.color,
-          created_at: new Date(group.createdAt).toISOString(),
-          share_code: group.shareCode,
-          // We include user_id here but if RLS prevents it, we will see the error.
-          user_id: userSession.id
-        })
-        
-        if (error) {
-          console.error(`Supabase failed to backup group ${group.id}:`, error)
+    // Attempt to sync immediately if online
+    if (userSession && navigator.onLine) {
+      try {
+        for (const group of newGroups) {
+          if (!group.synced) {
+            const { error } = await supabase.from("groups").upsert({
+              id: group.id,
+              name: group.name,
+              members: group.members,
+              color: group.color,
+              created_at: new Date(group.createdAt).toISOString(),
+              share_code: group.shareCode,
+              user_id: userSession.id
+            })
+            
+            if (!error) {
+              group.synced = true
+            }
+          }
         }
+      } catch (err) {
+        console.warn("Supabase backup loop error:", err)
       }
-    } catch (err) {
-      console.warn("Supabase backup loop error:", err)
     }
+
+    setGroups([...newGroups])
+    localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(newGroups))
   }, [userSession, GROUPS_STORAGE_KEY])
 
   // Person operations
@@ -536,9 +676,33 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       paidBy,
       payments: { ...payments },
       grandTotal: products.reduce((sum, p) => sum + p.price * p.quantity, 0),
+      synced: false
     }
 
-    // 1. Save to Local Storage
+    // Try to sync to Supabase if online
+    if (userSession && navigator.onLine) {
+      try {
+        const { error } = await supabase.from("bills").upsert({
+          id: bill.id,
+          user_id: userSession.id,
+          created_at: new Date(bill.createdAt).toISOString(),
+          people: bill.people,
+          products: bill.products,
+          paid_by: bill.paidBy,
+          payments: bill.payments,
+          grand_total: bill.grandTotal,
+          group_id: bill.groupId,
+          group_name: bill.groupName
+        })
+        if (!error) {
+          bill.synced = true
+        }
+      } catch (err) {
+        console.warn("Supabase failed to backup bill split:", err)
+      }
+    }
+
+    // Save to Local Storage
     const stored = localStorage.getItem(BILLS_STORAGE_KEY)
     let bills: SavedBill[] = []
     if (stored) {
@@ -552,28 +716,8 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(bills))
     setSavedBills(bills)
 
-    // 2. Cloud Backup to Supabase
-    if (userSession) {
-      try {
-        await supabase.from("bills").upsert({
-          id: bill.id,
-          user_id: userSession.id,
-          created_at: new Date(bill.createdAt).toISOString(),
-          people: bill.people,
-          products: bill.products,
-          paid_by: bill.paidBy,
-          payments: bill.payments,
-          grand_total: bill.grandTotal,
-          group_id: bill.groupId,
-          group_name: bill.groupName
-        })
-      } catch (err) {
-        console.warn("Supabase failed to backup bill split:", err)
-      }
-    }
-
     return bill.id
-  }, [people, products, paidBy, payments])
+  }, [people, products, paidBy, payments, userSession, BILLS_STORAGE_KEY])
 
   const getSavedBills = useCallback((): SavedBill[] => {
     return savedBills
@@ -596,12 +740,26 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     setSavedBills(filtered)
 
     // 2. Delete from Supabase
-    try {
-      await supabase.from("bills").delete().eq("id", billId)
-    } catch (err) {
-      console.warn("Supabase failed to delete bill:", err)
+    if (userSession && navigator.onLine) {
+      try {
+        await supabase.from("bills").delete().eq("id", billId)
+        return
+      } catch (err) {
+        console.warn("Supabase failed to delete bill:", err)
+      }
     }
-  }, [savedBills])
+
+    // If offline, record pending delete
+    if (userSession) {
+      const pendingDeleteBillsKey = `homiepay-pending-delete-bills-${userSession.id}`
+      const stored = localStorage.getItem(pendingDeleteBillsKey)
+      const list: string[] = stored ? JSON.parse(stored) : []
+      if (!list.includes(billId)) {
+        list.push(billId)
+        localStorage.setItem(pendingDeleteBillsKey, JSON.stringify(list))
+      }
+    }
+  }, [savedBills, userSession, BILLS_STORAGE_KEY])
 
   // Group Operations
   const addGroup = useCallback((name: string, addSelf: boolean = false) => {
@@ -631,7 +789,8 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       members: initialMembers,
       color: randomColor,
       createdAt: Date.now(),
-      shareCode: shareCode
+      shareCode: shareCode,
+      synced: false
     }
     const updated = [newGroup, ...groups]
     saveGroupsToStorage(updated)
@@ -639,7 +798,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   }, [groups, saveGroupsToStorage, userSession])
 
   const updateGroup = useCallback((id: string, updates: Partial<Omit<Group, "id">>) => {
-    const updated = groups.map((g) => (g.id === id ? { ...g, ...updates } : g))
+    const updated = groups.map((g) => (g.id === id ? { ...g, ...updates, synced: false } : g))
     saveGroupsToStorage(updated)
   }, [groups, saveGroupsToStorage])
 
@@ -648,12 +807,26 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     saveGroupsToStorage(updated)
 
     // Delete from Supabase
-    try {
-      await supabase.from("groups").delete().eq("id", id)
-    } catch (err) {
-      console.warn("Supabase failed to delete group:", err)
+    if (userSession && navigator.onLine) {
+      try {
+        await supabase.from("groups").delete().eq("id", id)
+        return
+      } catch (err) {
+        console.warn("Supabase failed to delete group:", err)
+      }
     }
-  }, [groups, saveGroupsToStorage])
+
+    // If offline, record pending delete
+    if (userSession) {
+      const pendingDeleteGroupsKey = `homiepay-pending-delete-groups-${userSession.id}`
+      const stored = localStorage.getItem(pendingDeleteGroupsKey)
+      const list: string[] = stored ? JSON.parse(stored) : []
+      if (!list.includes(id)) {
+        list.push(id)
+        localStorage.setItem(pendingDeleteGroupsKey, JSON.stringify(list))
+      }
+    }
+  }, [groups, saveGroupsToStorage, userSession])
 
   const addMemberToGroup = useCallback((groupId: string, name: string) => {
     const newMember: Person = {
@@ -662,7 +835,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     }
     const updated = groups.map((g) => {
       if (g.id === groupId) {
-        return { ...g, members: [...g.members, newMember] }
+        return { ...g, members: [...g.members, newMember], synced: false }
       }
       return g
     })
@@ -673,7 +846,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   const removeMemberFromGroup = useCallback((groupId: string, personId: string) => {
     const updated = groups.map((g) => {
       if (g.id === groupId) {
-        return { ...g, members: g.members.filter((m) => m.id !== personId) }
+        return { ...g, members: g.members.filter((m) => m.id !== personId), synced: false }
       }
       return g
     })
@@ -686,6 +859,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
         return {
           ...g,
           members: g.members.map((m) => (m.id === personId ? { ...m, name: name.trim() } : m)),
+          synced: false
         }
       }
       return g
@@ -707,6 +881,11 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     try {
       const cleanCode = code.trim().toUpperCase()
       if (!cleanCode) return { success: false, message: "Code cannot be empty." }
+
+      // Offline guard for joining groups via share code
+      if (typeof window !== "undefined" && !navigator.onLine) {
+        return { success: false, message: "An active internet connection is required to join groups via a share code." }
+      }
 
       // 1. Fetch group details from Supabase by share code
       const { data: groupData, error: groupErr } = await supabase

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Receipt, Plus, Users, History, Download, DollarSign, Smartphone, X, User } from "lucide-react"
+import { Receipt, Plus, Users, History, Download, DollarSign, Smartphone, X, User, WifiOff, Wifi } from "lucide-react"
 import { StepIndicator } from "@/components/step-indicator"
 import { AddFriendsStep } from "@/components/steps/add-friends-step"
 import { AddProductsStep } from "@/components/steps/add-products-step"
@@ -27,6 +27,8 @@ export function ExpenseSplitter({
   const [currentStep, setCurrentStep] = useState(1)
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [showPwaPopup, setShowPwaPopup] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
+  const [showSyncedToast, setShowSyncedToast] = useState(false)
   
   const {
     people,
@@ -86,6 +88,26 @@ export function ExpenseSplitter({
       return () => {
         window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
       }
+    }
+  }, [])
+
+  // Track online/offline state for real-time indicator
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    setIsOnline(navigator.onLine)
+
+    const handleOnline = () => {
+      setIsOnline(true)
+      setShowSyncedToast(true)
+      setTimeout(() => setShowSyncedToast(false), 3500)
+    }
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
+    return () => {
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
     }
   }, [])
 
@@ -165,9 +187,24 @@ export function ExpenseSplitter({
             </div>
             <div>
               <h1 className="text-lg font-bold text-foreground tracking-tight">HomiePay</h1>
+              {/* Offline Mode Micro-indicator */}
+              {!isOnline && (
+                <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1 leading-none mt-0.5 animate-pulse">
+                  <WifiOff className="h-2.5 w-2.5" />
+                  Offline · Saved Locally
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Offline badge chip */}
+            {!isOnline && (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Offline Mode
+              </div>
+            )}
+
             {/* Install PWA Button */}
             {installPrompt && (
               <Button
@@ -189,6 +226,16 @@ export function ExpenseSplitter({
             )}
           </div>
         </div>
+
+        {/* Offline Banner (mobile full-width) */}
+        {!isOnline && (
+          <div className="w-full bg-amber-500/10 border-t border-amber-200/60 px-4 py-1.5 flex items-center gap-2">
+            <WifiOff className="h-3 w-3 text-amber-600 shrink-0" />
+            <p className="text-[10px] font-semibold text-amber-700 leading-tight">
+              You're offline. Your bills and groups are saved on this device and will sync when you reconnect.
+            </p>
+          </div>
+        )}
       </header>
 
       {/* Main Content Layout */}
@@ -454,6 +501,14 @@ export function ExpenseSplitter({
           <span>Profile</span>
         </button>
       </div>
+
+      {/* Back-online Synced Toast */}
+      {showSyncedToast && (
+        <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-xl shadow-emerald-900/20 animate-in fade-in slide-in-from-bottom-3 duration-300">
+          <Wifi className="h-3.5 w-3.5" />
+          Back online! Syncing your data to the cloud...
+        </div>
+      )}
 
       {/* Footer Branding (Nexlyte) */}
       <footer className="w-full py-8 border-t border-border/10 flex items-center justify-center mt-8 pb-24 md:pb-8">
