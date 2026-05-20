@@ -257,214 +257,167 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     return () => window.removeEventListener("online", handleOnline)
   }, [syncPendingData])
 
-  // Live poll: refresh group members from Supabase every 30 seconds
-  // This ensures group creators see new joiners in real-time without reloading
-  useEffect(() => {
-    if (!userSession || !isLoaded) return
-
-    const refreshGroupMembers = async () => {
-      if (!navigator.onLine) return
-      try {
-        const currentUserId = userSession.id
-        const storedJoinedKey = `homiepay-joined-group-ids-${currentUserId}`
-        const storedJoined = localStorage.getItem(storedJoinedKey)
-        const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
-
-        // Fetch all groups this user created or joined
-        let supabaseGroups: any[] = []
-        const { data: createdGroups } = await supabase
-          .from("groups")
-          .select("id, members")
-          .eq("user_id", currentUserId)
-        if (createdGroups) supabaseGroups.push(...createdGroups)
-
-        if (joinedIds.length > 0) {
-          const { data: joinedGroups } = await supabase
-            .from("groups")
-            .select("id, members")
-            .in("id", joinedIds)
-          if (joinedGroups) {
-            joinedGroups.forEach((jg: any) => {
-              if (!supabaseGroups.some((g: any) => g.id === jg.id)) supabaseGroups.push(jg)
-            })
-          }
-        }
-
-        if (supabaseGroups.length === 0) return
-
-        // Update members in state and localStorage from Supabase (source of truth)
-        const localStored = localStorage.getItem(GROUPS_STORAGE_KEY)
-        const localGroups: Group[] = localStored ? JSON.parse(localStored) : []
-        let changed = false
-
-        const updated = localGroups.map(localGroup => {
-          const fresh = supabaseGroups.find((g: any) => g.id === localGroup.id)
-          if (fresh) {
-            const freshMemberIds = (fresh.members || []).map((m: any) => m.id).sort().join(",")
-            const localMemberIds = localGroup.members.map(m => m.id).sort().join(",")
-            if (freshMemberIds !== localMemberIds) {
-              changed = true
-              return { ...localGroup, members: fresh.members }
-            }
-          }
-          return localGroup
-        })
-
-        if (changed) {
-          console.log("[LiveSync] Group members updated from Supabase")
-          localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(updated))
-          setGroups([...updated])
-        }
-      } catch (err) {
-        // silently skip on error
-      }
-    }
-
-    // Run once immediately on mount, then every 30 seconds
-    refreshGroupMembers()
-    const interval = setInterval(refreshGroupMembers, 30000)
-    return () => clearInterval(interval)
-  }, [userSession, isLoaded, GROUPS_STORAGE_KEY])
-
-  // Fetch from Supabase and synchronize/merge when userSession is ready
-  useEffect(() => {
+  // Fetch from Supabase and synchronize/merge
+  const loadAndSyncFromSupabase = useCallback(async () => {
     if (!userSession || !isLoaded) return
 
     const currentUserId = userSession.id
 
-    async function loadAndSyncFromSupabase() {
-      try {
-        // 1. Sync Groups (Created by us OR Joined by us via share code)
-        const storedJoinedKey = `homiepay-joined-group-ids-${currentUserId}`
-        const storedJoined = localStorage.getItem(storedJoinedKey)
-        const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
+    try {
+      // 1. Sync Groups (Created by us OR Joined by us via share code)
+      const storedJoinedKey = `homiepay-joined-group-ids-${currentUserId}`
+      const storedJoined = localStorage.getItem(storedJoinedKey)
+      const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
 
-        let supabaseGroups: any[] = []
-        const { data: createdGroups, error: groupsErr } = await supabase
+      let supabaseGroups: any[] = []
+      const { data: createdGroups, error: groupsErr } = await supabase
+        .from("groups")
+        .select("*")
+        .eq("user_id", currentUserId)
+
+      if (!groupsErr && createdGroups) {
+        supabaseGroups.push(...createdGroups)
+      }
+
+      if (joinedIds.length > 0) {
+        const { data: joinedGroups, error: joinedErr } = await supabase
           .from("groups")
           .select("*")
-          .eq("user_id", currentUserId)
-
-        if (!groupsErr && createdGroups) {
-          supabaseGroups.push(...createdGroups)
-        }
-
-        if (joinedIds.length > 0) {
-          const { data: joinedGroups, error: joinedErr } = await supabase
-            .from("groups")
-            .select("*")
-            .in("id", joinedIds)
-          if (!joinedErr && joinedGroups) {
-            joinedGroups.forEach((jg: any) => {
-              if (!supabaseGroups.some(cg => cg.id === jg.id)) {
-                supabaseGroups.push(jg)
-              }
-            })
-          }
-        }
-
-        let mergedGroups: Group[] = []
-        if (supabaseGroups.length > 0) {
-          const formattedGroups: Group[] = supabaseGroups.map((g: any) => ({
-            id: g.id,
-            name: g.name,
-            members: g.members,  // Always trust Supabase for members (source of truth)
-            color: g.color,
-            createdAt: new Date(g.created_at).getTime(),
-            shareCode: g.share_code,
-            synced: true
-          }))
-
-          const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
-          const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
-          const groupsMap = new Map<string, Group>()
-
-          // Start with local groups as base
-          localGroups.forEach(g => groupsMap.set(g.id, g))
-
-          // Supabase always wins for groups it knows about:
-          // - members list is ALWAYS taken from Supabase (fixes the join-visibility bug)
-          // - other metadata (name, color, shareCode) also updated from Supabase
-          // - only keep local-only groups (synced: false) that Supabase doesn't have yet
-          formattedGroups.forEach(g => {
-            const existing = groupsMap.get(g.id)
-            if (existing && !existing.synced) {
-              // Local group not yet synced: keep local metadata but still take Supabase members
-              groupsMap.set(g.id, { ...existing, members: g.members, synced: true })
-            } else {
-              // Supabase is source of truth — always use its version
-              groupsMap.set(g.id, g)
+          .in("id", joinedIds)
+        if (!joinedErr && joinedGroups) {
+          joinedGroups.forEach((jg: any) => {
+            if (!supabaseGroups.some(cg => cg.id === jg.id)) {
+              supabaseGroups.push(jg)
             }
           })
+        }
+      }
 
-          mergedGroups = Array.from(groupsMap.values()).sort((a, b) => b.createdAt - a.createdAt)
-          localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(mergedGroups))
+      let mergedGroups: Group[] = []
+      if (supabaseGroups.length > 0) {
+        const formattedGroups: Group[] = supabaseGroups.map((g: any) => ({
+          id: g.id,
+          name: g.name,
+          members: g.members,  // Always trust Supabase for members (source of truth)
+          color: g.color,
+          createdAt: new Date(g.created_at).getTime(),
+          shareCode: g.share_code,
+          synced: true
+        }))
+
+        const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
+        const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
+        const groupsMap = new Map<string, Group>()
+
+        // Start with local groups as base
+        localGroups.forEach(g => groupsMap.set(g.id, g))
+
+        // Supabase always wins for groups it knows about:
+        // - members list is ALWAYS taken from Supabase (fixes the join-visibility bug)
+        // - other metadata (name, color, shareCode) also updated from Supabase
+        // - only keep local-only groups (synced: false) that Supabase doesn't have yet
+        formattedGroups.forEach(g => {
+          const existing = groupsMap.get(g.id)
+          if (existing && !existing.synced) {
+            // Local group not yet synced: keep local metadata but still take Supabase members
+            groupsMap.set(g.id, { ...existing, members: g.members, synced: true })
+          } else {
+            // Supabase is source of truth — always use its version
+            groupsMap.set(g.id, g)
+          }
+        })
+
+        mergedGroups = Array.from(groupsMap.values()).sort((a, b) => b.createdAt - a.createdAt)
+        
+        const localStoredGroupsStr = localStorage.getItem(GROUPS_STORAGE_KEY)
+        const currentGroupsStr = JSON.stringify(mergedGroups)
+        if (localStoredGroupsStr !== currentGroupsStr) {
+          localStorage.setItem(GROUPS_STORAGE_KEY, currentGroupsStr)
           setGroups(mergedGroups)
-        } else {
-          const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
-          mergedGroups = localStoredGroups ? JSON.parse(localStoredGroups) : []
         }
+      } else {
+        const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
+        mergedGroups = localStoredGroups ? JSON.parse(localStoredGroups) : []
+      }
 
-        // Get unified list of group IDs to sync bills
-        const allGroupIds = mergedGroups.map(g => g.id)
+      // Get unified list of group IDs to sync bills
+      const allGroupIds = mergedGroups.map(g => g.id)
 
-        // 2. Sync Bills associated with either this user ID OR any of our group sheets
-        let billsQuery = supabase.from("bills").select("*")
-        if (allGroupIds.length > 0) {
-          // Sync bills that belong to our user OR belong to our groups
-          billsQuery = billsQuery.or(`user_id.eq.${currentUserId},group_id.in.(${allGroupIds.join(",")})`)
-        } else {
-          billsQuery = billsQuery.eq("user_id", currentUserId)
-        }
+      // 2. Sync Bills associated with either this user ID OR any of our group sheets
+      let billsQuery = supabase.from("bills").select("*")
+      if (allGroupIds.length > 0) {
+        // Sync bills that belong to our user OR belong to our groups
+        billsQuery = billsQuery.or(`user_id.eq.${currentUserId},group_id.in.(${allGroupIds.join(",")})`)
+      } else {
+        billsQuery = billsQuery.eq("user_id", currentUserId)
+      }
 
-        const { data: supabaseBills, error: billsErr } = await billsQuery.order("created_at", { ascending: false })
+      const { data: supabaseBills, error: billsErr } = await billsQuery.order("created_at", { ascending: false })
 
-        if (!billsErr && supabaseBills) {
-          const formattedBills: SavedBill[] = supabaseBills.map((b: any) => ({
-            id: b.id,
-            createdAt: new Date(b.created_at).getTime(),
-            people: b.people,
-            products: b.products,
-            paidBy: b.paid_by,
-            payments: b.payments,
-            grandTotal: b.grand_total,
-            groupId: b.group_id,
-            groupName: b.group_name,
-            synced: true
-          }))
+      if (!billsErr && supabaseBills) {
+        const formattedBills: SavedBill[] = supabaseBills.map((b: any) => ({
+          id: b.id,
+          createdAt: new Date(b.created_at).getTime(),
+          people: b.people,
+          products: b.products,
+          paidBy: b.paid_by,
+          payments: b.payments,
+          grandTotal: b.grand_total,
+          groupId: b.group_id,
+          groupName: b.group_name,
+          synced: true
+        }))
 
-          const localStored = localStorage.getItem(BILLS_STORAGE_KEY)
-          const localBills: SavedBill[] = localStored ? JSON.parse(localStored) : []
-          const billsMap = new Map<string, SavedBill>()
+        const localStored = localStorage.getItem(BILLS_STORAGE_KEY)
+        const localBills: SavedBill[] = localStored ? JSON.parse(localStored) : []
+        const billsMap = new Map<string, SavedBill>()
 
-          localBills.forEach(b => billsMap.set(b.id, b))
-          formattedBills.forEach(b => {
-            if (billsMap.has(b.id)) {
-              const existing = billsMap.get(b.id)!
-              if (b.createdAt > existing.createdAt) {
-                billsMap.set(b.id, b)
-              }
-            } else {
+        localBills.forEach(b => billsMap.set(b.id, b))
+        formattedBills.forEach(b => {
+          if (billsMap.has(b.id)) {
+            const existing = billsMap.get(b.id)!
+            if (b.createdAt > existing.createdAt) {
               billsMap.set(b.id, b)
             }
-          })
+          } else {
+            billsMap.set(b.id, b)
+          }
+        })
 
-          const mergedBills = Array.from(billsMap.values()).sort((a, b) => b.createdAt - a.createdAt)
-          localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(mergedBills))
+        const mergedBills = Array.from(billsMap.values()).sort((a, b) => b.createdAt - a.createdAt)
+        const localStoredBillsStr = localStorage.getItem(BILLS_STORAGE_KEY)
+        const currentBillsStr = JSON.stringify(mergedBills)
+        if (localStoredBillsStr !== currentBillsStr) {
+          localStorage.setItem(BILLS_STORAGE_KEY, currentBillsStr)
           setSavedBills(mergedBills)
         }
-      } catch (err) {
-        console.warn("Supabase background sync paused. Fallback to Local Storage:", err)
       }
-
-      // Reconcile pending offline entries on successful initial mount load
-      if (navigator.onLine) {
-        syncPendingData()
-      }
+    } catch (err) {
+      console.warn("Supabase background sync paused. Fallback to Local Storage:", err)
     }
 
-    loadAndSyncFromSupabase()
+    // Reconcile pending offline entries on successful load
+    if (navigator.onLine) {
+      syncPendingData()
+    }
   }, [userSession, isLoaded, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY, syncPendingData])
+
+  // Unified 3-second auto-poll interval for groups, bills, and history
+  useEffect(() => {
+    if (!userSession || !isLoaded) return
+
+    // Run once immediately on load / session activation
+    loadAndSyncFromSupabase()
+
+    // Setup 3-second background polling
+    const interval = setInterval(() => {
+      if (navigator.onLine) {
+        loadAndSyncFromSupabase()
+      }
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [userSession, isLoaded, loadAndSyncFromSupabase])
 
   // Save to localStorage when active bill data changes
   useEffect(() => {
