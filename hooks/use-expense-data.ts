@@ -257,6 +257,75 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     return () => window.removeEventListener("online", handleOnline)
   }, [syncPendingData])
 
+  // Live poll: refresh group members from Supabase every 30 seconds
+  // This ensures group creators see new joiners in real-time without reloading
+  useEffect(() => {
+    if (!userSession || !isLoaded) return
+
+    const refreshGroupMembers = async () => {
+      if (!navigator.onLine) return
+      try {
+        const currentUserId = userSession.id
+        const storedJoinedKey = `homiepay-joined-group-ids-${currentUserId}`
+        const storedJoined = localStorage.getItem(storedJoinedKey)
+        const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
+
+        // Fetch all groups this user created or joined
+        let supabaseGroups: any[] = []
+        const { data: createdGroups } = await supabase
+          .from("groups")
+          .select("id, members")
+          .eq("user_id", currentUserId)
+        if (createdGroups) supabaseGroups.push(...createdGroups)
+
+        if (joinedIds.length > 0) {
+          const { data: joinedGroups } = await supabase
+            .from("groups")
+            .select("id, members")
+            .in("id", joinedIds)
+          if (joinedGroups) {
+            joinedGroups.forEach((jg: any) => {
+              if (!supabaseGroups.some((g: any) => g.id === jg.id)) supabaseGroups.push(jg)
+            })
+          }
+        }
+
+        if (supabaseGroups.length === 0) return
+
+        // Update members in state and localStorage from Supabase (source of truth)
+        const localStored = localStorage.getItem(GROUPS_STORAGE_KEY)
+        const localGroups: Group[] = localStored ? JSON.parse(localStored) : []
+        let changed = false
+
+        const updated = localGroups.map(localGroup => {
+          const fresh = supabaseGroups.find((g: any) => g.id === localGroup.id)
+          if (fresh) {
+            const freshMemberIds = (fresh.members || []).map((m: any) => m.id).sort().join(",")
+            const localMemberIds = localGroup.members.map(m => m.id).sort().join(",")
+            if (freshMemberIds !== localMemberIds) {
+              changed = true
+              return { ...localGroup, members: fresh.members }
+            }
+          }
+          return localGroup
+        })
+
+        if (changed) {
+          console.log("[LiveSync] Group members updated from Supabase")
+          localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(updated))
+          setGroups([...updated])
+        }
+      } catch (err) {
+        // silently skip on error
+      }
+    }
+
+    // Run once immediately on mount, then every 30 seconds
+    refreshGroupMembers()
+    const interval = setInterval(refreshGroupMembers, 30000)
+    return () => clearInterval(interval)
+  }, [userSession, isLoaded, GROUPS_STORAGE_KEY])
+
   // Fetch from Supabase and synchronize/merge when userSession is ready
   useEffect(() => {
     if (!userSession || !isLoaded) return
@@ -299,7 +368,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
           const formattedGroups: Group[] = supabaseGroups.map((g: any) => ({
             id: g.id,
             name: g.name,
-            members: g.members,
+            members: g.members,  // Always trust Supabase for members (source of truth)
             color: g.color,
             createdAt: new Date(g.created_at).getTime(),
             shareCode: g.share_code,
@@ -310,14 +379,20 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
           const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
           const groupsMap = new Map<string, Group>()
 
+          // Start with local groups as base
           localGroups.forEach(g => groupsMap.set(g.id, g))
+
+          // Supabase always wins for groups it knows about:
+          // - members list is ALWAYS taken from Supabase (fixes the join-visibility bug)
+          // - other metadata (name, color, shareCode) also updated from Supabase
+          // - only keep local-only groups (synced: false) that Supabase doesn't have yet
           formattedGroups.forEach(g => {
-            if (groupsMap.has(g.id)) {
-              const existing = groupsMap.get(g.id)!
-              if (g.createdAt > existing.createdAt) {
-                groupsMap.set(g.id, g)
-              }
+            const existing = groupsMap.get(g.id)
+            if (existing && !existing.synced) {
+              // Local group not yet synced: keep local metadata but still take Supabase members
+              groupsMap.set(g.id, { ...existing, members: g.members, synced: true })
             } else {
+              // Supabase is source of truth — always use its version
               groupsMap.set(g.id, g)
             }
           })
