@@ -182,8 +182,8 @@ export function ExpenseSplitter({
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             {/* Dollar Icon in Green on White BG */}
-            <div className="w-9 h-9 rounded-xl bg-white border border-emerald-100 flex items-center justify-center shadow-sm">
-              <DollarSign className="h-5 w-5 text-emerald-600 font-bold" />
+            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-emerald-100 dark:border-slate-800 flex items-center justify-center shadow-sm transition-colors duration-300">
+              <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400 font-bold" />
             </div>
             <div>
               <h1 className="text-lg font-bold text-foreground tracking-tight">HomiePay</h1>
@@ -452,14 +452,14 @@ export function ExpenseSplitter({
       </div>
 
       {/* Mobile Floating Bottom Tab Navigation (Fixed bottom) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-slate-200/90 flex items-center justify-around pt-3 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-[0_-4px_24px_rgba(0,0,0,0.04)] px-3 select-none">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-lg border-t border-slate-200/90 dark:border-slate-800/90 flex items-center justify-around pt-3 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-[0_-4px_24px_rgba(0,0,0,0.04)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)] px-3 select-none transition-colors duration-300">
         <button
           onClick={() => setActiveTab("groups")}
           className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
-            activeTab === "groups" ? "text-emerald-600 scale-105" : "text-muted-foreground"
+            activeTab === "groups" ? "text-emerald-600 dark:text-emerald-400 scale-105" : "text-muted-foreground"
           }`}
         >
-          <div className={`p-1.5 rounded-lg ${activeTab === "groups" ? "bg-emerald-50 text-emerald-600" : ""}`}>
+          <div className={`p-1.5 rounded-lg transition-colors duration-200 ${activeTab === "groups" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : ""}`}>
             <Users className="h-5 w-5" />
           </div>
           <span>Groups</span>
@@ -468,10 +468,10 @@ export function ExpenseSplitter({
         <button
           onClick={() => setActiveTab("splitter")}
           className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
-            activeTab === "splitter" ? "text-emerald-600 scale-105" : "text-muted-foreground"
+            activeTab === "splitter" ? "text-emerald-600 dark:text-emerald-400 scale-105" : "text-muted-foreground"
           }`}
         >
-          <div className={`p-1.5 rounded-lg ${activeTab === "splitter" ? "bg-emerald-50 text-emerald-600" : ""}`}>
+          <div className={`p-1.5 rounded-lg transition-colors duration-200 ${activeTab === "splitter" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : ""}`}>
             <Receipt className="h-5 w-5" />
           </div>
           <span>Split Bill</span>
@@ -480,10 +480,10 @@ export function ExpenseSplitter({
         <button
           onClick={() => setActiveTab("history")}
           className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
-            activeTab === "history" ? "text-emerald-600 scale-105" : "text-muted-foreground"
+            activeTab === "history" ? "text-emerald-600 dark:text-emerald-400 scale-105" : "text-muted-foreground"
           }`}
         >
-          <div className={`p-1.5 rounded-lg ${activeTab === "history" ? "bg-emerald-50 text-emerald-600" : ""}`}>
+          <div className={`p-1.5 rounded-lg transition-colors duration-200 ${activeTab === "history" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : ""}`}>
             <History className="h-5 w-5" />
           </div>
           <span>History</span>
@@ -492,10 +492,10 @@ export function ExpenseSplitter({
         <button
           onClick={() => setActiveTab("profile")}
           className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
-            activeTab === "profile" ? "text-emerald-600 scale-105" : "text-muted-foreground"
+            activeTab === "profile" ? "text-emerald-600 dark:text-emerald-400 scale-105" : "text-muted-foreground"
           }`}
         >
-          <div className={`p-1.5 rounded-lg ${activeTab === "profile" ? "bg-emerald-50 text-emerald-600" : ""}`}>
+          <div className={`p-1.5 rounded-lg transition-colors duration-200 ${activeTab === "profile" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : ""}`}>
             <User className="h-5 w-5" />
           </div>
           <span>Profile</span>
