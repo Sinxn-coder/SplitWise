@@ -73,6 +73,39 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   const BILLS_STORAGE_KEY = `homiepay-saved-bills-${userId}`
   const GROUPS_STORAGE_KEY = `homiepay-saved-groups-${userId}`
 
+  const getPendingDeleteGroupsKey = useCallback((id = userId) => `homiepay-pending-delete-groups-${id}`, [userId])
+
+  const getPendingDeleteGroupIds = useCallback((id = userId): string[] => {
+    try {
+      const stored = localStorage.getItem(getPendingDeleteGroupsKey(id))
+      return stored ? JSON.parse(stored) : []
+    } catch (e) {
+      console.error("Failed to parse pending group deletions:", e)
+      return []
+    }
+  }, [getPendingDeleteGroupsKey])
+
+  const addPendingDeleteGroupId = useCallback((groupId: string, id = userId) => {
+    const list = getPendingDeleteGroupIds(id)
+    if (!list.includes(groupId)) {
+      localStorage.setItem(getPendingDeleteGroupsKey(id), JSON.stringify([...list, groupId]))
+    }
+  }, [getPendingDeleteGroupIds, getPendingDeleteGroupsKey, userId])
+
+  const removePendingDeleteGroupIds = useCallback((groupIds: string[], id = userId) => {
+    if (groupIds.length === 0) return
+
+    const pendingDeleteGroupsKey = getPendingDeleteGroupsKey(id)
+    const groupIdSet = new Set(groupIds)
+    const next = getPendingDeleteGroupIds(id).filter((groupId) => !groupIdSet.has(groupId))
+
+    if (next.length > 0) {
+      localStorage.setItem(pendingDeleteGroupsKey, JSON.stringify(next))
+    } else {
+      localStorage.removeItem(pendingDeleteGroupsKey)
+    }
+  }, [getPendingDeleteGroupIds, getPendingDeleteGroupsKey, userId])
+
   // Load user data on mount / session change
   useEffect(() => {
     if (!userSession) {
@@ -132,7 +165,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
 
     const currentUserId = userSession.id
     const pendingDeleteBillsKey = `homiepay-pending-delete-bills-${currentUserId}`
-    const pendingDeleteGroupsKey = `homiepay-pending-delete-groups-${currentUserId}`
+    const pendingDeleteGroupsKey = getPendingDeleteGroupsKey(currentUserId)
 
     // 1. Process Pending Deletes (Bills)
     try {
@@ -242,7 +275,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     } catch (e) {
       console.error("Failed to sync pending bills:", e)
     }
-  }, [userSession, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY])
+  }, [userSession, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY, getPendingDeleteGroupsKey])
 
   // Attach online/offline event listener to sync automatically when back online
   useEffect(() => {
@@ -268,6 +301,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
       const storedJoinedKey = `homiepay-joined-group-ids-${currentUserId}`
       const storedJoined = localStorage.getItem(storedJoinedKey)
       const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
+      const pendingDeleteGroupIds = new Set(getPendingDeleteGroupIds(currentUserId))
 
       let supabaseGroups: any[] = []
       const { data: createdGroups, error: groupsErr } = await supabase
@@ -295,10 +329,12 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
 
       let mergedGroups: Group[] = []
       if (supabaseGroups.length > 0) {
-        const formattedGroups: Group[] = supabaseGroups.map((g: any) => ({
+        const formattedGroups: Group[] = supabaseGroups
+          .filter((g: any) => !pendingDeleteGroupIds.has(g.id))
+          .map((g: any) => ({
           id: g.id,
           name: g.name,
-          members: g.members,  // Always trust Supabase for members (source of truth)
+          members: g.members || [],
           color: g.color,
           createdAt: new Date(g.created_at).getTime(),
           shareCode: g.share_code,
@@ -309,18 +345,17 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
         const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
         const groupsMap = new Map<string, Group>()
 
-        // Start with local groups as base
-        localGroups.forEach(g => groupsMap.set(g.id, g))
+        // Keep optimistic local changes visible until their background write confirms.
+        localGroups.forEach(g => {
+          if (!pendingDeleteGroupIds.has(g.id)) {
+            groupsMap.set(g.id, g)
+          }
+        })
 
-        // Supabase always wins for groups it knows about:
-        // - members list is ALWAYS taken from Supabase (fixes the join-visibility bug)
-        // - other metadata (name, color, shareCode) also updated from Supabase
-        // - only keep local-only groups (synced: false) that Supabase doesn't have yet
         formattedGroups.forEach(g => {
           const existing = groupsMap.get(g.id)
           if (existing && !existing.synced) {
-            // Local group not yet synced: keep local metadata but still take Supabase members
-            groupsMap.set(g.id, { ...existing, members: g.members, synced: true })
+            groupsMap.set(g.id, existing)
           } else {
             // Supabase is source of truth — always use its version
             groupsMap.set(g.id, g)
@@ -337,7 +372,13 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
         }
       } else {
         const localStoredGroups = localStorage.getItem(GROUPS_STORAGE_KEY)
-        mergedGroups = localStoredGroups ? JSON.parse(localStoredGroups) : []
+        const localGroups: Group[] = localStoredGroups ? JSON.parse(localStoredGroups) : []
+        mergedGroups = localGroups.filter((group) => !pendingDeleteGroupIds.has(group.id))
+
+        if (JSON.stringify(localGroups) !== JSON.stringify(mergedGroups)) {
+          localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(mergedGroups))
+          setGroups(mergedGroups)
+        }
       }
 
       // Get unified list of group IDs to sync bills
@@ -400,7 +441,7 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
     if (navigator.onLine) {
       syncPendingData()
     }
-  }, [userSession, isLoaded, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY, syncPendingData])
+  }, [userSession, isLoaded, BILLS_STORAGE_KEY, GROUPS_STORAGE_KEY, getPendingDeleteGroupIds, syncPendingData])
 
   // Unified 3-second auto-poll interval for groups, bills, and history
   useEffect(() => {
@@ -861,6 +902,10 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
   }, [groups, saveGroupsToStorage])
 
   const deleteGroup = useCallback((id: string) => {
+    if (userSession) {
+      addPendingDeleteGroupId(id, userSession.id)
+    }
+
     // 1. Immediately update UI state (Optimistic Update)
     const updated = groups.filter((g) => g.id !== id)
     saveGroupsToStorage(updated)
@@ -871,22 +916,19 @@ export function useExpenseData(userSession?: { id: string; username: string; ful
         if (navigator.onLine) {
           try {
             const { error } = await supabase.from("groups").delete().eq("id", id)
-            if (!error) return
+            if (!error) {
+              removePendingDeleteGroupIds([id], userSession.id)
+              return
+            }
           } catch (err) {
             console.warn("Supabase failed to delete group in background:", err)
           }
         }
         
-        const pendingDeleteGroupsKey = `homiepay-pending-delete-groups-${userSession.id}`
-        const stored = localStorage.getItem(pendingDeleteGroupsKey)
-        const list: string[] = stored ? JSON.parse(stored) : []
-        if (!list.includes(id)) {
-          list.push(id)
-          localStorage.setItem(pendingDeleteGroupsKey, JSON.stringify(list))
-        }
+        addPendingDeleteGroupId(id, userSession.id)
       })()
     }
-  }, [groups, saveGroupsToStorage, userSession])
+  }, [addPendingDeleteGroupId, groups, removePendingDeleteGroupIds, saveGroupsToStorage, userSession])
 
   const addMemberToGroup = useCallback((groupId: string, name: string) => {
     const newMember: Person = {
