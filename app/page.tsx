@@ -15,6 +15,7 @@ export default function Home() {
   const [isStarted, setIsStarted] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
   const [userSession, setUserSession] = useState<{ id: string; username: string; full_name: string } | null>(null)
+  const [animationDone, setAnimationDone] = useState(false)
 
   // Recover active session from localStorage on mount
   useEffect(() => {
@@ -43,7 +44,12 @@ export default function Home() {
 
   if (isStarted) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 animate-in fade-in zoom-in-95 duration-500 flex flex-col">
+      <div 
+        className={`min-h-screen bg-slate-50 text-slate-900 flex flex-col ${
+          animationDone ? "" : "animate-in fade-in zoom-in-95 duration-500"
+        }`}
+        onAnimationEnd={() => setAnimationDone(true)}
+      >
         {/* Responsive Premium Top Navigation Bar */}
         <div className="w-full bg-white border-b border-slate-200 py-3.5 px-4 md:px-6 flex justify-between items-center shadow-sm z-30">
           <div className="flex items-center gap-2">
