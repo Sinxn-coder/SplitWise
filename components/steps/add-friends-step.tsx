@@ -27,6 +27,7 @@ export function AddFriendsStep({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const handleAddPerson = () => {
     if (newName.trim()) {
@@ -45,6 +46,7 @@ export function AddFriendsStep({
   const startEditing = (person: Person) => {
     setEditingId(person.id)
     setEditingName(person.name)
+    setConfirmDeleteId(null)
   }
 
   const saveEdit = () => {
@@ -127,22 +129,49 @@ export function AddFriendsStep({
                   ) : (
                     <>
                       <span className="flex-1 font-medium">{person.name}</span>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => startEditing(person)}
-                      >
-                        <Edit3 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => removePerson(person.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {confirmDeleteId === person.id ? (
+                        <div className="flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+                          <span className="text-[10px] font-bold text-destructive uppercase tracking-wide mr-1 select-none">Delete?</span>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-2.5 text-xs font-bold rounded-lg shadow-sm"
+                            onClick={() => {
+                              removePerson(person.id)
+                              setConfirmDeleteId(null)
+                            }}
+                          >
+                            Yes
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => setConfirmDeleteId(null)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            onClick={() => startEditing(person)}
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => setConfirmDeleteId(person.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
