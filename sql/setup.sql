@@ -82,6 +82,14 @@ begin
     alter table public.bills add column grand_total double precision not null default 0;
   end if;
 
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'bills' and column_name = 'is_settled') then
+    alter table public.bills add column is_settled boolean not null default false;
+  end if;
+
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'bills' and column_name = 'cleared_by') then
+    alter table public.bills add column cleared_by jsonb not null default '[]'::jsonb;
+  end if;
+
   -- Make old columns nullable so they don't break incoming queries
   alter table public.bills alter column description drop not null;
   alter table public.bills alter column amount drop not null;
