@@ -211,7 +211,7 @@ export const createSavedBillsSlice: StateCreator<
           try {
             const { error } = await supabase.from("bills").upsert({
               id: updatedBill.id,
-              user_id: userSession.id,
+              user_id: updatedBill.creatorId || userSession.id,
               created_at: new Date(updatedBill.createdAt).toISOString(),
               people: updatedBill.people,
               products: updatedBill.products,

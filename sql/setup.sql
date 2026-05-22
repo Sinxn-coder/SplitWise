@@ -30,6 +30,7 @@ create table if not exists public.groups (
   members jsonb not null default '[]'::jsonb, -- Array of member names/IDs
   color text,                                 -- Hex color for the group icon
   share_code text unique,                     -- Unique invite code for members
+  settlements jsonb not null default '[]'::jsonb, -- Array of completed settlements
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
@@ -39,7 +40,8 @@ create table if not exists public.groups (
 -- ─────────────────────────────────────────────────────────────────────────────
 alter table public.groups
   add column if not exists color text,
-  add column if not exists share_code text unique;
+  add column if not exists share_code text unique,
+  add column if not exists settlements jsonb not null default '[]'::jsonb;
 
 -- 3. Create Bills Table (Associated with a user and optionally a group)
 create table if not exists public.bills (
