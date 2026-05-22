@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Wallet, Check, Sparkles, Info, Users, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { Person } from "@/hooks/use-expense-data"
+import type { Person } from "@/lib/types"
 
 interface SelectPayerStepProps {
   people: Person[]

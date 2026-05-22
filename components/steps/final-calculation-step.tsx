@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { Person } from "@/hooks/use-expense-data"
+import type { Person } from "@/lib/types"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 

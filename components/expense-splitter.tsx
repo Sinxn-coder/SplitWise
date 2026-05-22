@@ -12,8 +12,9 @@ import { SavedBills } from "@/components/saved-bills"
 import { GroupsView } from "@/components/groups-view"
 import { ProfileView } from "@/components/profile-view"
 import { AppTutorial } from "@/components/app-tutorial"
-import { useExpenseData, SavedBill } from "@/hooks/use-expense-data"
+import { useStore } from "@/store/useStore"
 import { Button } from "@/components/ui/button"
+import { SavedBill } from "@/lib/types"
 
 const STEP_LABELS = ["Friends", "Products", "Assign", "Payer", "Summary"]
 
@@ -32,11 +33,16 @@ export function ExpenseSplitter({
   const [showSyncedToast, setShowSyncedToast] = useState(false)
   const [hasCompletedTutorial, setHasCompletedTutorial] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
-  // Track active group context so bills get tagged with groupId/groupName
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [activeGroupName, setActiveGroupName] = useState<string | null>(null)
   const [activeBillId, setActiveBillId] = useState<string | null>(null)
   
+  const store = useStore()
+
+  useEffect(() => {
+    store.setUserSession(userSession)
+  }, [userSession])
+
   const {
     people,
     products,
@@ -72,8 +78,9 @@ export function ExpenseSplitter({
     updateMemberInGroup,
     loadGroupIntoActiveSplit,
     joinGroupByShareCode,
+    addSettlement,
     grandTotal,
-  } = useExpenseData(userSession)
+  } = store
 
   const tutorialStorageKey = `homiepay-tutorial-complete-${userSession.id}`
 
@@ -406,6 +413,7 @@ export function ExpenseSplitter({
                   onAddMember={addMemberToGroup}
                   onRemoveMember={removeMemberFromGroup}
                   onUpdateMember={updateMemberInGroup}
+                  onAddSettlement={addSettlement}
                   onJoinGroup={joinGroupByShareCode}
                   onLoadBill={(billId) => {
                     handleLoadBill(billId)

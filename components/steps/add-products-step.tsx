@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PremiumModal } from "@/components/premium-modal"
-import type { Product } from "@/hooks/use-expense-data"
+import type { Product } from "@/lib/types"
 
 interface AddProductsStepProps {
   products: Product[]

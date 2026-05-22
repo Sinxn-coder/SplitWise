@@ -22,7 +22,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { MobileBottomSheet } from "@/components/mobile-bottom-sheet"
 import { PremiumModal } from "@/components/premium-modal"
-import type { Group, Person, SavedBill } from "@/hooks/use-expense-data"
+import type { Group, Person, SavedBill } from "@/lib/types"
+import { calculateGroupBalances } from "@/lib/finance-engine"
 
 interface GroupsViewProps {
   groups: Group[]
@@ -31,7 +32,7 @@ interface GroupsViewProps {
   onAddGroup: (name: string, addSelf: boolean) => string
   onUpdateGroup: (id: string, updates: Partial<Omit<Group, "id">>) => void
   onDeleteGroup: (id: string) => void
-  onAddMember: (groupId: string, name: string) => string
+  onAddMember: (groupId: string, name: string) => void
   onRemoveMember: (groupId: string, personId: string) => void
   onUpdateMember: (groupId: string, personId: string, name: string) => void
   onJoinGroup: (code: string) => Promise<{ success: boolean; message: string; groupName?: string }>
@@ -39,6 +40,7 @@ interface GroupsViewProps {
   onLoadBill: (billId: string) => void
   onDeleteBill: (billId: string) => void
   onNewBill: () => void
+  onAddSettlement: (groupId: string, settlement: Omit<import("@/lib/types").Settlement, 'id' | 'createdAt'>) => void
 }
 
 export function GroupsView({
@@ -56,6 +58,7 @@ export function GroupsView({
   onLoadBill,
   onDeleteBill,
   onNewBill,
+  onAddSettlement,
 }: GroupsViewProps) {
   const [newGroupName, setNewGroupName] = useState("")
   const [showAddGroup, setShowAddGroup] = useState(false)
@@ -67,7 +70,12 @@ export function GroupsView({
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editingMemberName, setEditingMemberName] = useState("")
   const [activeDetailGroupId, setActiveDetailGroupId] = useState<string | null>(null)
-  const [groupDetailTab, setGroupDetailTab] = useState<"members" | "bills" | "new-bill">("members")
+  const [groupDetailTab, setGroupDetailTab] = useState<"members" | "bills" | "new-bill" | "balances">("members")
+
+  // Settlement modal state
+  const [settleModalOpen, setSettleModalOpen] = useState(false)
+  const [settleData, setSettleData] = useState<{ from: string, to: string, amount: number } | null>(null)
+  const [settleAmountInput, setSettleAmountInput] = useState("")
 
   // Three-dot dropdown menu state
   const [openMenuGroupId, setOpenMenuGroupId] = useState<string | null>(null)
@@ -190,6 +198,10 @@ export function GroupsView({
   }
 
   if (activeGroup) {
+    const calculatedBalances = groupDetailTab === "balances" 
+      ? calculateGroupBalances(activeGroup.members, groupBills, activeGroup.settlements || [])
+      : []
+
     return (
       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300">
         {/* Header with Back button + Group Settings Menu */}
@@ -332,13 +344,13 @@ export function GroupsView({
           {/* Sliding highlight */}
           <div
             className={`absolute top-1 bottom-1 w-[calc(33.333%-4px)] bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200/20 dark:border-slate-700/20 transition-all duration-300 ease-out ${
-              groupDetailTab === "members" ? "left-1" : groupDetailTab === "bills" ? "left-[calc(33.333%+1px)]" : "left-[calc(66.666%+2px)]"
+              groupDetailTab === "members" ? "left-1" : groupDetailTab === "bills" ? "left-[calc(33.333%+1px)]" : groupDetailTab === "balances" ? "left-[calc(66.666%+2px)]" : "opacity-0 scale-95"
             }`}
           />
           {([
             { key: "members", icon: Users, label: "Members" },
             { key: "bills",   icon: History, label: "Bills" },
-            { key: "new-bill", icon: Receipt, label: "New Bill" },
+            { key: "balances", icon: IndianRupee, label: "Balances" },
           ] as const).map(({ key, icon: Icon, label }) => (
             <button
               key={key}
@@ -620,6 +632,98 @@ export function GroupsView({
                     )
                   })}
                 </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ───────── Tab: Balances ───────── */}
+        {groupDetailTab === "balances" && (
+          <Card className="border-border/50 shadow-md animate-in fade-in duration-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <IndianRupee className="h-4 w-4 text-emerald-500" />
+                Group Balances
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Who owes whom across all bills</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {calculatedBalances.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-3">
+                    <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <p className="font-bold text-foreground text-sm">All settled up! 🎉</p>
+                  <p className="text-xs mt-1">There are no outstanding debts in this group.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {calculatedBalances.map((tx, i) => {
+                    const fromPerson = activeGroup.members.find(m => m.id === tx.from)
+                    const toPerson = activeGroup.members.find(m => m.id === tx.to)
+                    
+                    if (!fromPerson || !toPerson) return null
+
+                    return (
+                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-border/50 bg-slate-50/50 dark:bg-slate-900/30 hover:border-primary/20 transition-all">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-rose-600 dark:text-rose-400">{fromPerson.name}</span>
+                          <span className="text-xs font-medium text-muted-foreground">owes</span>
+                          <span className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">{toPerson.name}</span>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                          <span className="font-bold text-base flex items-center">
+                            <IndianRupee className="h-3.5 w-3.5 mr-0.5" />
+                            {tx.amount.toFixed(2)}
+                          </span>
+                          <Button 
+                            size="sm" 
+                            className="h-8 text-xs font-bold tracking-wide"
+                            onClick={() => {
+                              setSettleData({ from: tx.from, to: tx.to, amount: tx.amount })
+                              setSettleAmountInput(tx.amount.toFixed(2))
+                              setSettleModalOpen(true)
+                            }}
+                          >
+                            Settle Up
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Recent Activity Section */}
+              {activeGroup.settlements && activeGroup.settlements.length > 0 && (
+                <div className="mt-6 pt-5 border-t border-border/50">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+                    <History className="h-3 w-3" />
+                    Recent Settlements
+                  </h4>
+                  <div className="space-y-2">
+                    {[...activeGroup.settlements].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5).map(s => {
+                      const fromPerson = activeGroup.members.find(m => m.id === s.fromUserId)
+                      const toPerson = activeGroup.members.find(m => m.id === s.toUserId)
+                      return (
+                        <div key={s.id} className="flex items-center justify-between text-xs p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/50">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-700 dark:text-slate-300">{fromPerson?.name}</span>
+                            <span className="text-slate-400">paid</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-300">{toPerson?.name}</span>
+                            <span className="font-black text-emerald-600 dark:text-emerald-400 ml-1 flex items-center">
+                              <IndianRupee className="h-2.5 w-2.5" />
+                              {s.amount.toFixed(2)}
+                            </span>
+                          </div>
+                          <span className="text-slate-400 text-[10px] font-medium shrink-0 ml-2">
+                            {new Date(s.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1232,6 +1336,73 @@ export function GroupsView({
           )}
         </div>
       </PremiumModal>
+
+      {/* Settle Up Modal */}
+      {settleData && (
+        <MobileBottomSheet
+          isOpen={settleModalOpen}
+          onClose={() => setSettleModalOpen(false)}
+          title="Settle Up"
+        >
+          <div className="space-y-4 pt-2">
+            <div className="flex flex-col gap-2 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between w-full">
+                <span className="text-sm font-bold text-rose-600 dark:text-rose-400">
+                  {groups.find(g => g.id === activeDetailGroupId)?.members.find(m => m.id === settleData.from)?.name}
+                </span>
+                <span className="text-xs text-muted-foreground font-medium px-2">pays</span>
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  {groups.find(g => g.id === activeDetailGroupId)?.members.find(m => m.id === settleData.to)?.name}
+                </span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Amount (₹)</label>
+              <div className="relative">
+                <IndianRupee className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={settleAmountInput}
+                  onChange={(e) => setSettleAmountInput(e.target.value)}
+                  className="pl-11 h-12 text-lg font-bold border-border/80 focus:border-primary/80 focus:ring-primary/20 rounded-xl"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 rounded-xl text-base"
+                onClick={() => setSettleModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 h-12 rounded-xl text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                onClick={() => {
+                  const amt = parseFloat(settleAmountInput)
+                  if (!isNaN(amt) && amt > 0 && activeDetailGroupId) {
+                    onAddSettlement(activeDetailGroupId, {
+                      fromUserId: settleData.from,
+                      toUserId: settleData.to,
+                      amount: amt,
+                      groupId: activeDetailGroupId
+                    })
+                    setSettleModalOpen(false)
+                  }
+                }}
+                disabled={parseFloat(settleAmountInput) <= 0 || isNaN(parseFloat(settleAmountInput))}
+              >
+                Record Payment
+              </Button>
+            </div>
+          </div>
+        </MobileBottomSheet>
+      )}
     </div>
   )
 }

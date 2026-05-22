@@ -3,7 +3,7 @@
 import { History, IndianRupee, Trash2, Users, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { SavedBill } from "@/hooks/use-expense-data"
+import type { SavedBill } from "@/lib/types"
 
 interface SavedBillsProps {
   bills: SavedBill[]

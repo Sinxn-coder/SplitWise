@@ -4,7 +4,7 @@ import { Users2, IndianRupee, CheckCircle2, Sliders } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import type { Person, Product } from "@/hooks/use-expense-data"
+import type { Person, Product } from "@/lib/types"
 
 interface AssignProductsStepProps {
   people: Person[]
