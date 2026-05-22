@@ -189,9 +189,6 @@ export function calculateGroupBalances(
 
   // Steps 2-6: Process All Bills & Merge into Global Balances
   groupBills.forEach((bill) => {
-    // Ignore bills that have been explicitly marked as settled by the user
-    if ((bill as any).isSettled) return;
-
     // calculateSplits returns how much each person in the bill consumed
     const splits = calculateSplits(bill.people, bill.products);
     

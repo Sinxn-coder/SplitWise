@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input"
 import { MobileBottomSheet } from "@/components/mobile-bottom-sheet"
 import { PremiumModal } from "@/components/premium-modal"
 import type { Group, Person, SavedBill } from "@/lib/types"
-import { calculateGroupBalances } from "@/lib/finance-engine"
+import { calculateGroupBalances, calculateSplits, calculateOwes } from "@/lib/finance-engine"
 
 interface GroupsViewProps {
   groups: Group[]
@@ -39,7 +39,7 @@ interface GroupsViewProps {
   onSelectGroup: (groupId: string) => void
   onLoadBill: (billId: string) => void
   onDeleteBill: (billId: string) => void
-  onMarkBillAsSettled: (billId: string) => void
+  onMarkPersonBillSettled: (billId: string, personId?: string) => void
   onNewBill: () => void
   onAddSettlement: (groupId: string, settlement: Omit<import("@/lib/types").Settlement, 'id' | 'createdAt'>) => void
 }
@@ -58,7 +58,7 @@ export function GroupsView({
   onSelectGroup,
   onLoadBill,
   onDeleteBill,
-  onMarkBillAsSettled,
+  onMarkPersonBillSettled,
   onNewBill,
   onAddSettlement,
 }: GroupsViewProps) {
@@ -81,6 +81,9 @@ export function GroupsView({
 
   // Bill settling state
   const [confirmSettleBillId, setConfirmSettleBillId] = useState<string | null>(null)
+  const [confirmSettlePersonId, setConfirmSettlePersonId] = useState<string | null>(null)
+  const [billFilter, setBillFilter] = useState<"all" | "uncleared" | "cleared">("uncleared")
+  const [expandedBillId, setExpandedBillId] = useState<string | null>(null)
 
   // Three-dot dropdown menu state
   const [openMenuGroupId, setOpenMenuGroupId] = useState<string | null>(null)
@@ -190,7 +193,12 @@ export function GroupsView({
   const canRemoveMember = (group: Group, member: Person) => group.ownerId === currentUserId || member.userId === currentUserId
   const isCurrentUserMember = (member: Person) => member.userId === currentUserId
 
-  const groupBills = savedBills.filter(b => b.groupId === activeGroup?.id)
+  const allGroupBills = savedBills.filter(b => b.groupId === activeGroup?.id)
+  const groupBills = allGroupBills.filter(b => {
+    if (billFilter === "cleared") return b.isSettled;
+    if (billFilter === "uncleared") return !b.isSettled;
+    return true; // "all"
+  })
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp)
@@ -204,7 +212,7 @@ export function GroupsView({
 
   if (activeGroup) {
     const calculatedBalances = groupDetailTab === "balances" 
-      ? calculateGroupBalances(activeGroup.members, groupBills, activeGroup.settlements || [])
+      ? calculateGroupBalances(activeGroup.members, allGroupBills, activeGroup.settlements || [])
       : []
 
     return (
@@ -535,7 +543,29 @@ export function GroupsView({
                 <History className="h-4 w-4 text-primary" />
                 Past Bills
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">All bills created in this group</p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-muted-foreground">All bills created in this group</p>
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg overflow-hidden">
+                  <button 
+                    onClick={() => setBillFilter("all")}
+                    className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${billFilter === "all" ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                  >
+                    All
+                  </button>
+                  <button 
+                    onClick={() => setBillFilter("uncleared")}
+                    className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${billFilter === "uncleared" ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                  >
+                    Uncleared
+                  </button>
+                  <button 
+                    onClick={() => setBillFilter("cleared")}
+                    className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${billFilter === "cleared" ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                  >
+                    Cleared
+                  </button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
               {groupBills.length === 0 ? (
@@ -578,10 +608,15 @@ export function GroupsView({
                       if (solePayer) payerText = `Paid by ${solePayer.name}`
                     }
 
+                    const splits = calculateSplits(bill.people, bill.products)
+                    const billTransactions = calculateOwes(bill.people, splits, bill.payments || {})
+                    const isExpanded = expandedBillId === bill.id
+
                     return (
                       <div
                         key={bill.id}
-                        className="p-3 rounded-xl bg-muted/50 border border-border/50 hover:border-primary/20 transition-all duration-200 animate-in fade-in slide-in-from-left-2"
+                        onClick={() => setExpandedBillId(isExpanded ? null : bill.id)}
+                        className={`p-3 rounded-xl bg-muted/50 border transition-all duration-200 animate-in fade-in slide-in-from-left-2 cursor-pointer ${isExpanded ? "border-primary/40 shadow-sm" : "border-border/50 hover:border-primary/20"}`}
                         style={{ animationDelay: `${index * 40}ms` }}
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -624,15 +659,15 @@ export function GroupsView({
                             <div className="flex items-center gap-1 shrink-0">
                               {!bill.isSettled && (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setConfirmSettleBillId(bill.id) }}
+                                  onClick={(e) => { e.stopPropagation(); setConfirmSettleBillId(bill.id); setConfirmSettlePersonId(null) }}
                                   className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-muted-foreground hover:text-emerald-600 transition-all cursor-pointer"
-                                  title="Mark as Settled"
+                                  title="Mark Entire Bill as Settled"
                                 >
                                   <Check className="h-4 w-4" />
                                 </button>
                               )}
                               <button
-                                onClick={() => onLoadBill(bill.id)}
+                                onClick={(e) => { e.stopPropagation(); onLoadBill(bill.id) }}
                                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
                                 title="Load bill in splitter"
                               >
@@ -648,6 +683,56 @@ export function GroupsView({
                             </div>
                           )}
                         </div>
+                        
+                        {/* Expandable Per-Person Settlement Area */}
+                        {isExpanded && (
+                          <div className="mt-3 pt-3 border-t border-border/50 animate-in slide-in-from-top-2 duration-200">
+                            {billTransactions.length === 0 ? (
+                              <p className="text-xs text-center text-muted-foreground py-2 font-medium">No pending debts for this bill.</p>
+                            ) : (
+                              <div className="space-y-1.5">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Individual Debts</p>
+                                {billTransactions.map((tx, idx) => {
+                                  const fromPerson = bill.people.find(p => p.id === tx.from)
+                                  const toPerson = bill.people.find(p => p.id === tx.to)
+                                  const isCleared = bill.clearedBy?.includes(tx.from)
+                                  
+                                  return (
+                                    <div key={idx} className="flex items-center justify-between bg-white dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <span className={`text-xs font-semibold truncate ${isCleared ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-300'}`}>
+                                          {fromPerson?.name}
+                                        </span>
+                                        <span className="text-[10px] text-muted-foreground">owes</span>
+                                        <span className={`text-xs font-semibold truncate ${isCleared ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-300'}`}>
+                                          {toPerson?.name}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0 pl-2">
+                                        <span className={`text-xs font-bold flex items-center ${isCleared ? 'text-slate-400 line-through' : 'text-rose-600 dark:text-rose-400'}`}>
+                                          <IndianRupee className="h-3 w-3 mr-0.5" />
+                                          {tx.amount.toFixed(2)}
+                                        </span>
+                                        {isCleared ? (
+                                          <span className="h-6 px-2 flex items-center justify-center rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold">
+                                            PAID
+                                          </span>
+                                        ) : (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setConfirmSettleBillId(bill.id); setConfirmSettlePersonId(tx.from) }}
+                                            className="h-6 px-2 flex items-center justify-center rounded-md bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 text-emerald-600 transition-colors text-[10px] font-bold cursor-pointer"
+                                          >
+                                            Mark Paid
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -1434,25 +1519,28 @@ export function GroupsView({
           <div className="space-y-4 pt-2">
             <div className="text-center p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800">
               <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">
-                Are you sure you want to mark this bill as settled?
+                {confirmSettlePersonId 
+                  ? "Are you sure you want to mark this person's share as paid?" 
+                  : "Are you sure you want to mark this entire bill as settled?"}
               </p>
               <p className="text-xs text-amber-700/80 dark:text-amber-500/80 mt-2">
-                This will remove the bill from the group's active balances. This action cannot be changed later.
+                This will record a settlement and balance the group's debts. This action cannot be changed later.
               </p>
             </div>
             <div className="flex gap-3 pt-4">
               <Button
                 variant="outline"
                 className="flex-1 h-12 rounded-xl text-base"
-                onClick={() => setConfirmSettleBillId(null)}
+                onClick={() => { setConfirmSettleBillId(null); setConfirmSettlePersonId(null) }}
               >
                 Cancel
               </Button>
               <Button
                 className="flex-1 h-12 rounded-xl text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                 onClick={() => {
-                  onMarkBillAsSettled(confirmSettleBillId)
+                  onMarkPersonBillSettled(confirmSettleBillId, confirmSettlePersonId || undefined)
                   setConfirmSettleBillId(null)
+                  setConfirmSettlePersonId(null)
                 }}
               >
                 Mark as Settled

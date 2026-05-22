@@ -154,7 +154,8 @@ export const useStore = create<StoreState>()((set, get, api) => ({
             grand_total: bill.grandTotal,
             group_id: bill.groupId,
             group_name: bill.groupName,
-            is_settled: bill.isSettled || false
+            is_settled: bill.isSettled || false,
+            cleared_by: bill.clearedBy
           })
 
           if (!error) {
