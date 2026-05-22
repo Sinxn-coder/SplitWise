@@ -55,4 +55,5 @@ export interface SavedBill {
   groupId?: string
   groupName?: string
   synced?: boolean
+  isSettled?: boolean
 }

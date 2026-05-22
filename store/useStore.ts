@@ -153,7 +153,8 @@ export const useStore = create<StoreState>()((set, get, api) => ({
             payments: bill.payments,
             grand_total: bill.grandTotal,
             group_id: bill.groupId,
-            group_name: bill.groupName
+            group_name: bill.groupName,
+            is_settled: bill.isSettled || false
           })
 
           if (!error) {

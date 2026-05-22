@@ -79,6 +79,7 @@ export function ExpenseSplitter({
     loadGroupIntoActiveSplit,
     joinGroupByShareCode,
     addSettlement,
+    markBillAsSettled,
     grandTotal,
   } = store
 
@@ -419,6 +420,7 @@ export function ExpenseSplitter({
                     handleLoadBill(billId)
                   }}
                   onDeleteBill={handleDeleteBill}
+                  onMarkBillAsSettled={markBillAsSettled}
                   onSelectGroup={(groupId) => {
                     const group = groups.find(g => g.id === groupId)
                     loadGroupIntoActiveSplit(groupId)

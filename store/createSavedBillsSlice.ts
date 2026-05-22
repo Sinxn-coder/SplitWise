@@ -11,6 +11,7 @@ export interface SavedBillsSlice {
   getSavedBills: () => SavedBill[]
   loadBill: (billId: string) => void
   deleteSavedBill: (billId: string) => void
+  markBillAsSettled: (billId: string) => void
 }
 
 export const createSavedBillsSlice: StateCreator<
@@ -144,6 +145,49 @@ export const createSavedBillsSlice: StateCreator<
         }
         addPendingDelete()
       })()
+    }
+  },
+
+  markBillAsSettled: (billId) => {
+    const userSession = get().userSession
+    const BILLS_STORAGE_KEY = `homiepay-saved-bills-${userSession?.id || "anonymous"}`
+
+    // Optimistic Update
+    const updated = get().savedBills.map((b) => (b.id === billId ? { ...b, isSettled: true, synced: false } : b))
+    localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(updated))
+    set({ savedBills: updated })
+
+    // Supabase background sync (same as saveBill)
+    if (userSession && navigator.onLine) {
+      const bill = updated.find((b) => b.id === billId)
+      if (bill) {
+        ;(async () => {
+          try {
+            const { error } = await supabase.from("bills").upsert({
+              id: bill.id,
+              user_id: userSession.id,
+              created_at: new Date(bill.createdAt).toISOString(),
+              people: bill.people,
+              products: bill.products,
+              paid_by: bill.paidBy,
+              payments: bill.payments,
+              grand_total: bill.grandTotal,
+              group_id: bill.groupId,
+              group_name: bill.groupName,
+              is_settled: true
+            })
+            if (!error) {
+              set((state) => {
+                const next = state.savedBills.map((b) => (b.id === bill.id ? { ...b, synced: true } : b))
+                localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(next))
+                return { savedBills: next }
+              })
+            }
+          } catch (err) {
+            console.warn("Supabase background backup failed for settled bill:", err)
+          }
+        })()
+      }
     }
   }
 })

@@ -39,6 +39,7 @@ interface GroupsViewProps {
   onSelectGroup: (groupId: string) => void
   onLoadBill: (billId: string) => void
   onDeleteBill: (billId: string) => void
+  onMarkBillAsSettled: (billId: string) => void
   onNewBill: () => void
   onAddSettlement: (groupId: string, settlement: Omit<import("@/lib/types").Settlement, 'id' | 'createdAt'>) => void
 }
@@ -57,6 +58,7 @@ export function GroupsView({
   onSelectGroup,
   onLoadBill,
   onDeleteBill,
+  onMarkBillAsSettled,
   onNewBill,
   onAddSettlement,
 }: GroupsViewProps) {
@@ -76,6 +78,9 @@ export function GroupsView({
   const [settleModalOpen, setSettleModalOpen] = useState(false)
   const [settleData, setSettleData] = useState<{ from: string, to: string, amount: number } | null>(null)
   const [settleAmountInput, setSettleAmountInput] = useState("")
+
+  // Bill settling state
+  const [confirmSettleBillId, setConfirmSettleBillId] = useState<string | null>(null)
 
   // Three-dot dropdown menu state
   const [openMenuGroupId, setOpenMenuGroupId] = useState<string | null>(null)
@@ -601,6 +606,12 @@ export function GroupsView({
                                     View only
                                   </span>
                                 )}
+                                {bill.isSettled && (
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1">
+                                    <Check className="h-2.5 w-2.5" />
+                                    Settled
+                                  </span>
+                                )}
                               </div>
                               <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
                                 <span>{formatDate(bill.createdAt)}</span>
@@ -611,6 +622,15 @@ export function GroupsView({
                           {/* Actions — only for group owner */}
                           {isOwner && (
                             <div className="flex items-center gap-1 shrink-0">
+                              {!bill.isSettled && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setConfirmSettleBillId(bill.id) }}
+                                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-muted-foreground hover:text-emerald-600 transition-all cursor-pointer"
+                                  title="Mark as Settled"
+                                >
+                                  <Check className="h-4 w-4" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => onLoadBill(bill.id)}
                                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
@@ -1398,6 +1418,44 @@ export function GroupsView({
                 disabled={parseFloat(settleAmountInput) <= 0 || isNaN(parseFloat(settleAmountInput))}
               >
                 Record Payment
+              </Button>
+            </div>
+          </div>
+        </MobileBottomSheet>
+      )}
+
+      {/* Confirm Bill Settlement Modal */}
+      {confirmSettleBillId && (
+        <MobileBottomSheet
+          isOpen={!!confirmSettleBillId}
+          onClose={() => setConfirmSettleBillId(null)}
+          title="Mark as Settled?"
+        >
+          <div className="space-y-4 pt-2">
+            <div className="text-center p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">
+                Are you sure you want to mark this bill as settled?
+              </p>
+              <p className="text-xs text-amber-700/80 dark:text-amber-500/80 mt-2">
+                This will remove the bill from the group's active balances. This action cannot be changed later.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 rounded-xl text-base"
+                onClick={() => setConfirmSettleBillId(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 h-12 rounded-xl text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                onClick={() => {
+                  onMarkBillAsSettled(confirmSettleBillId)
+                  setConfirmSettleBillId(null)
+                }}
+              >
+                Mark as Settled
               </Button>
             </div>
           </div>
