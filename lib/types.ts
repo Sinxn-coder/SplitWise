@@ -57,4 +57,5 @@ export interface SavedBill {
   synced?: boolean
   isSettled?: boolean
   clearedBy?: string[]
+  creatorId?: string
 }

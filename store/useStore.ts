@@ -148,6 +148,7 @@ export const useStore = create<StoreState>()((set, get, api) => ({
           groupName: rb.group_name,
           isSettled: rb.is_settled || false,
           clearedBy: rb.cleared_by || [],
+          creatorId: rb.user_id,
           synced: true
         }
 
@@ -243,7 +244,7 @@ export const useStore = create<StoreState>()((set, get, api) => ({
         for (const bill of unsyncedBills) {
           const { error } = await supabase.from("bills").upsert({
             id: bill.id,
-            user_id: currentUserId,
+            user_id: bill.creatorId || currentUserId,
             created_at: new Date(bill.createdAt).toISOString(),
             people: bill.people,
             products: bill.products,

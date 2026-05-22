@@ -544,12 +544,10 @@ export function GroupsView({
                   <History className="h-4 w-4 text-primary" />
                   Past Bills
                 </CardTitle>
-                {activeGroup.ownerId === currentUserId && (
-                  <Button size="sm" onClick={onNewBill} className="h-7 text-[11px] font-bold px-2.5 gap-1 shadow-sm rounded-lg">
-                    <Plus className="h-3.5 w-3.5" />
-                    New Bill
-                  </Button>
-                )}
+                <Button size="sm" onClick={onNewBill} className="h-7 text-[11px] font-bold px-2.5 gap-1 shadow-sm rounded-lg">
+                  <Plus className="h-3.5 w-3.5" />
+                  New Bill
+                </Button>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-xs text-muted-foreground">All bills created in this group</p>
@@ -581,28 +579,38 @@ export function GroupsView({
                   <FileText className="h-10 w-10 mx-auto mb-3 opacity-20" />
                   <p className="font-medium text-foreground text-sm">No bills yet</p>
                   <p className="text-xs mt-1">Bills you create in this group will appear here</p>
-                  {activeGroup.ownerId === currentUserId && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-4"
-                      onClick={() => setGroupDetailTab("new-bill")}
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" />
-                      Create First Bill
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => setGroupDetailTab("new-bill")}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Create First Bill
+                  </Button>
                 </div>
               ) : (
                 <>
-                  {/* Read-only notice for non-owners */}
-                  {activeGroup.ownerId !== currentUserId && (
-                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 mb-2">
-                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">View only — bills are managed by the group creator</span>
-                    </div>
-                  )}
+                  {/* Permissions removed — anyone can view, specific users can edit */}
                   {groupBills.map((bill, index) => {
                     const isOwner = activeGroup.ownerId === currentUserId
+                    const canManageBill = isOwner || bill.creatorId === currentUserId
+                    
+                    let canSettleBill = false
+                    if (bill.paidBy) {
+                      const payer = bill.people.find((p) => p.id === bill.paidBy)
+                      if (payer && payer.userId === currentUserId) canSettleBill = true
+                    } else if (bill.payments) {
+                      const payerIds = Object.keys(bill.payments).filter(id => (bill.payments?.[id] || 0) > 0)
+                      for (const pid of payerIds) {
+                        const payer = bill.people.find(p => p.id === pid)
+                        if (payer && payer.userId === currentUserId) {
+                          canSettleBill = true
+                          break
+                        }
+                      }
+                    }
+
                     const payersCount = bill.payments ? Object.keys(bill.payments).filter(id => (bill.payments?.[id] || 0) > 0).length : 0
                     let payerText = ""
                     if (payersCount > 1) {
@@ -643,12 +651,7 @@ export function GroupsView({
                                   <Users className="h-2.5 w-2.5" />
                                   {bill.people.length} people
                                 </span>
-                                {!isOwner && (
-                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
-                                    <Eye className="h-2.5 w-2.5" />
-                                    View only
-                                  </span>
-                                )}
+                                {/* View Only text removed */}
                                 {bill.isSettled && (
                                   <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1">
                                     <Check className="h-2.5 w-2.5" />
@@ -662,10 +665,10 @@ export function GroupsView({
                               </div>
                             </div>
                           </div>
-                          {/* Actions — only for group owner */}
-                          {isOwner && (
+                          {/* Actions — for bill creator or group owner */}
+                          {canManageBill && (
                             <div className="flex items-center gap-1 shrink-0">
-                              {!bill.isSettled && (
+                              {!bill.isSettled && canSettleBill && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setConfirmSettleBillId(bill.id); setConfirmSettlePersonId(null) }}
                                   className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-muted-foreground hover:text-emerald-600 transition-all cursor-pointer"
@@ -726,12 +729,16 @@ export function GroupsView({
                                             PAID
                                           </span>
                                         ) : (
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); setConfirmSettleBillId(bill.id); setConfirmSettlePersonId(tx.from) }}
-                                            className="h-6 px-2 flex items-center justify-center rounded-md bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 text-emerald-600 transition-colors text-[10px] font-bold cursor-pointer"
-                                          >
-                                            Mark Paid
-                                          </button>
+                                          canSettleBill ? (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setConfirmSettleBillId(bill.id); setConfirmSettlePersonId(tx.from) }}
+                                              className="h-6 px-2.5 flex items-center justify-center rounded-md bg-slate-100 hover:bg-emerald-100 dark:bg-slate-800 dark:hover:bg-emerald-900/30 text-slate-600 hover:text-emerald-700 dark:text-slate-400 dark:hover:text-emerald-400 text-[10px] font-bold transition-colors cursor-pointer border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800/50"
+                                            >
+                                              Mark Paid
+                                            </button>
+                                          ) : (
+                                            <span className="text-[10px] font-medium text-muted-foreground italic">Pending</span>
+                                          )
                                         )}
                                       </div>
                                     </div>

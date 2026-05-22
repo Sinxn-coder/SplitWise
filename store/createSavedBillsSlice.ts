@@ -33,10 +33,12 @@ export const createSavedBillsSlice: StateCreator<
     const finalId = billId || crypto.randomUUID()
     
     let originalCreatedAt = Date.now()
+    let originalCreatorId = userSession?.id
     if (isEditing) {
       const existingBill = get().savedBills.find((b) => b.id === billId)
       if (existingBill) {
         originalCreatedAt = existingBill.createdAt
+        originalCreatorId = existingBill.creatorId || userSession?.id
       }
     }
 
@@ -50,6 +52,7 @@ export const createSavedBillsSlice: StateCreator<
       grandTotal,
       groupId: groupId || undefined,
       groupName: groupName || undefined,
+      creatorId: originalCreatorId,
       synced: false
     }
 
