@@ -41,6 +41,9 @@ export function ExpenseSplitter({
 
   useEffect(() => {
     store.setUserSession(userSession)
+    if (userSession) {
+      store.syncPendingData()
+    }
   }, [userSession])
 
   const {
@@ -128,6 +131,7 @@ export function ExpenseSplitter({
     const handleOnline = () => {
       setIsOnline(true)
       setShowSyncedToast(true)
+      store.syncPendingData()
       setTimeout(() => setShowSyncedToast(false), 3500)
     }
     const handleOffline = () => setIsOnline(false)

@@ -8,6 +8,7 @@ export type StoreState = ActiveBillSlice & GroupsSlice & SavedBillsSlice & {
   userSession: { id: string; username: string; full_name: string } | null
   setUserSession: (session: { id: string; username: string; full_name: string } | null) => void
   syncPendingData: () => Promise<void>
+  fetchRemoteData: () => Promise<void>
 }
 
 export const useStore = create<StoreState>()((set, get, api) => ({
@@ -66,6 +67,103 @@ export const useStore = create<StoreState>()((set, get, api) => ({
     }
 
     get().setIsLoaded(true)
+  },
+
+  fetchRemoteData: async () => {
+    const { userSession, groups } = get()
+    if (!userSession || !navigator.onLine) return
+
+    const userId = userSession.id
+    
+    // Get locally joined group IDs
+    const storedJoinedKey = `homiepay-joined-group-ids-${userId}`
+    const storedJoined = localStorage.getItem(storedJoinedKey)
+    const joinedIds: string[] = storedJoined ? JSON.parse(storedJoined) : []
+
+    // Fetch groups we own OR groups we joined
+    const groupOrStr = `user_id.eq.${userId}${joinedIds.length > 0 ? `,id.in.(${joinedIds.join(',')})` : ''}`
+    const { data: remoteGroups, error: groupErr } = await supabase
+      .from('groups')
+      .select('*')
+      .or(groupOrStr)
+
+    let mergedGroups = [...groups]
+    let allRelevantGroupIds: string[] = []
+
+    if (!groupErr && remoteGroups) {
+      allRelevantGroupIds = remoteGroups.map((g: any) => g.id)
+      
+      remoteGroups.forEach((rg: any) => {
+        const localIdx = mergedGroups.findIndex(lg => lg.id === rg.id)
+        const formattedRemote = {
+          id: rg.id,
+          name: rg.name,
+          members: rg.members || [],
+          color: rg.color,
+          shareCode: rg.share_code,
+          ownerId: rg.user_id,
+          createdAt: new Date(rg.created_at).getTime(),
+          settlements: rg.settlements || [],
+          synced: true
+        }
+
+        if (localIdx >= 0) {
+          // If local has unsynced changes, skip overwriting to preserve offline work
+          if (mergedGroups[localIdx].synced !== false) {
+            mergedGroups[localIdx] = formattedRemote
+          }
+        } else {
+          mergedGroups.push(formattedRemote)
+        }
+      })
+      
+      const GROUPS_STORAGE_KEY = `homiepay-saved-groups-${userId}`
+      localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(mergedGroups))
+      get().setGroups(mergedGroups)
+    } else {
+      allRelevantGroupIds = groups.map(g => g.id)
+    }
+
+    // Fetch bills for those groups OR bills we created without a group
+    const billOrStr = `user_id.eq.${userId}${allRelevantGroupIds.length > 0 ? `,group_id.in.(${allRelevantGroupIds.join(',')})` : ''}`
+    const { data: remoteBills, error: billErr } = await supabase
+      .from('bills')
+      .select('*')
+      .or(billOrStr)
+
+    let mergedBills = [...get().savedBills]
+
+    if (!billErr && remoteBills) {
+      remoteBills.forEach((rb: any) => {
+        const localIdx = mergedBills.findIndex(lb => lb.id === rb.id)
+        const formattedRemote = {
+          id: rb.id,
+          createdAt: new Date(rb.created_at).getTime(),
+          people: rb.people || [],
+          products: rb.products || [],
+          paidBy: rb.paid_by,
+          payments: rb.payments || {},
+          grandTotal: rb.grand_total,
+          groupId: rb.group_id,
+          groupName: rb.group_name,
+          isSettled: rb.is_settled || false,
+          clearedBy: rb.cleared_by || [],
+          synced: true
+        }
+
+        if (localIdx >= 0) {
+          if (mergedBills[localIdx].synced !== false) {
+            mergedBills[localIdx] = formattedRemote
+          }
+        } else {
+          mergedBills.push(formattedRemote)
+        }
+      })
+
+      const BILLS_STORAGE_KEY = `homiepay-saved-bills-${userId}`
+      localStorage.setItem(BILLS_STORAGE_KEY, JSON.stringify(mergedBills))
+      get().setSavedBills(mergedBills)
+    }
   },
 
   syncPendingData: async () => {
@@ -172,6 +270,13 @@ export const useStore = create<StoreState>()((set, get, api) => ({
       }
     } catch (e) {
       console.error("Failed to sync pending bills:", e)
+    }
+
+    // 5. Finally, fetch latest remote data to sync down changes from other devices
+    try {
+      await get().fetchRemoteData()
+    } catch (e) {
+      console.error("Failed to fetch remote data:", e)
     }
   },
 

@@ -539,10 +539,18 @@ export function GroupsView({
         {groupDetailTab === "bills" && (
           <Card className="border-border/50 shadow-md animate-in fade-in duration-200">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <History className="h-4 w-4 text-primary" />
-                Past Bills
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary" />
+                  Past Bills
+                </CardTitle>
+                {activeGroup.ownerId === currentUserId && (
+                  <Button size="sm" onClick={onNewBill} className="h-7 text-[11px] font-bold px-2.5 gap-1 shadow-sm rounded-lg">
+                    <Plus className="h-3.5 w-3.5" />
+                    New Bill
+                  </Button>
+                )}
+              </div>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-xs text-muted-foreground">All bills created in this group</p>
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg overflow-hidden">
