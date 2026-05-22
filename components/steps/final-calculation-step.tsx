@@ -553,8 +553,8 @@ export function FinalCalculationStep({
           </button>
         </div>
 
-        {/* Auto-saved notice for group bills */}
-        {isGroupBill && (
+        {/* Auto-saved notice for new group bills */}
+        {isGroupBill && !isHistoryBill && (
           <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/30 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
               <Check className="h-3.5 w-3.5 text-white" />
@@ -566,27 +566,31 @@ export function FinalCalculationStep({
           </div>
         )}
 
-        {/* Auto-saved notice for personal bills */}
-        {!isGroupBill && (
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/30 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-              <Check className="h-3.5 w-3.5 text-white" />
+        {/* Notice for history bills */}
+        {isHistoryBill && (
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center shrink-0">
+              <Receipt className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
             </div>
             <div>
-              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Bill auto-saved to history</p>
-              <p className="text-[10px] text-emerald-600/80 dark:text-emerald-500/80 mt-0.5">Any changes you make are automatically saved back to your history</p>
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Read-Only View</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">This saved bill cannot be edited to preserve settlement history.</p>
             </div>
           </div>
         )}
 
         <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-between border-t border-border/40">
-          <Button variant="outline" onClick={onBack}>
-            Back
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="destructive" onClick={onReset} className="flex items-center gap-2">
-              <RotateCcw className="h-4 w-4" />
-              Done
+          {!isHistoryBill ? (
+            <Button variant="outline" onClick={onBack}>
+              Back to Edit
+            </Button>
+          ) : (
+            <div /> // Empty div for spacing if Back is hidden
+          )}
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button onClick={onReset} className="w-full sm:w-auto flex items-center gap-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900">
+              <Check className="h-4 w-4" />
+              {isHistoryBill ? "Close Bill" : "Save & Close"}
             </Button>
           </div>
         </div>
