@@ -544,7 +544,7 @@ export function GroupsView({
                   <History className="h-4 w-4 text-primary" />
                   Past Bills
                 </CardTitle>
-                <Button size="sm" onClick={onNewBill} className="h-7 text-[11px] font-bold px-2.5 gap-1 shadow-sm rounded-lg">
+                <Button size="sm" onClick={() => setGroupDetailTab("new-bill")} className="h-7 text-[11px] font-bold px-2.5 gap-1 shadow-sm rounded-lg">
                   <Plus className="h-3.5 w-3.5" />
                   New Bill
                 </Button>
