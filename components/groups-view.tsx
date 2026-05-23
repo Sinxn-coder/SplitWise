@@ -668,15 +668,6 @@ export function GroupsView({
                           {/* Actions — for bill creator or group owner */}
                           {canManageBill && (
                             <div className="flex items-center gap-1 shrink-0">
-                              {!bill.isSettled && canSettleBill && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setConfirmSettleBillId(bill.id); setConfirmSettlePersonId(null) }}
-                                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-muted-foreground hover:text-emerald-600 transition-all cursor-pointer"
-                                  title="Mark Entire Bill as Settled"
-                                >
-                                  <Check className="h-4 w-4" />
-                                </button>
-                              )}
                               <button
                                 onClick={(e) => { e.stopPropagation(); onLoadBill(bill.id) }}
                                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
@@ -731,7 +722,7 @@ export function GroupsView({
                                         ) : (
                                           canSettleBill ? (
                                             <button
-                                              onClick={(e) => { e.stopPropagation(); setConfirmSettleBillId(bill.id); setConfirmSettlePersonId(tx.from) }}
+                                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmSettleBillId(bill.id); setConfirmSettlePersonId(tx.from) }}
                                               className="h-6 px-2.5 flex items-center justify-center rounded-md bg-slate-100 hover:bg-emerald-100 dark:bg-slate-800 dark:hover:bg-emerald-900/30 text-slate-600 hover:text-emerald-700 dark:text-slate-400 dark:hover:text-emerald-400 text-[10px] font-bold transition-colors cursor-pointer border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800/50"
                                             >
                                               Mark Paid
