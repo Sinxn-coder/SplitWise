@@ -210,6 +210,118 @@ export function GroupsView({
     })
   }
 
+  const renderModals = () => (
+    <>
+      {/* Settle Up Modal */}
+      {settleData && (
+        <MobileBottomSheet
+          isOpen={settleModalOpen}
+          onClose={() => setSettleModalOpen(false)}
+          title="Settle Up"
+        >
+          <div className="space-y-4 pt-2">
+            <div className="flex flex-col gap-2 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between w-full">
+                <span className="text-sm font-bold text-rose-600 dark:text-rose-400">
+                  {groups.find(g => g.id === activeDetailGroupId)?.members.find(m => m.id === settleData.from)?.name}
+                </span>
+                <span className="text-xs text-muted-foreground font-medium px-2">pays</span>
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  {groups.find(g => g.id === activeDetailGroupId)?.members.find(m => m.id === settleData.to)?.name}
+                </span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Amount (₹)</label>
+              <div className="relative">
+                <IndianRupee className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={settleAmountInput}
+                  onChange={(e) => setSettleAmountInput(e.target.value)}
+                  className="pl-11 h-12 text-lg font-bold border-border/80 focus:border-primary/80 focus:ring-primary/20 rounded-xl"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 rounded-xl text-base"
+                onClick={() => setSettleModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 h-12 rounded-xl text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                onClick={() => {
+                  const amt = parseFloat(settleAmountInput)
+                  if (!isNaN(amt) && amt > 0 && activeDetailGroupId) {
+                    onAddSettlement(activeDetailGroupId, {
+                      fromUserId: settleData.from,
+                      toUserId: settleData.to,
+                      amount: amt,
+                      groupId: activeDetailGroupId
+                    })
+                    setSettleModalOpen(false)
+                  }
+                }}
+                disabled={parseFloat(settleAmountInput) <= 0 || isNaN(parseFloat(settleAmountInput))}
+              >
+                Record Payment
+              </Button>
+            </div>
+          </div>
+        </MobileBottomSheet>
+      )}
+
+      {/* Confirm Bill Settlement Modal */}
+      {confirmSettleBillId && (
+        <MobileBottomSheet
+          isOpen={!!confirmSettleBillId}
+          onClose={() => setConfirmSettleBillId(null)}
+          title="Mark as Settled?"
+        >
+          <div className="space-y-4 pt-2">
+            <div className="text-center p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">
+                {confirmSettlePersonId 
+                  ? "Are you sure you want to mark this person's share as paid?" 
+                  : "Are you sure you want to mark this entire bill as settled?"}
+              </p>
+              <p className="text-xs text-amber-700/80 dark:text-amber-500/80 mt-2">
+                This will record a settlement and balance the group's debts. This action cannot be changed later.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 rounded-xl text-base"
+                onClick={() => { setConfirmSettleBillId(null); setConfirmSettlePersonId(null) }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 h-12 rounded-xl text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                onClick={() => {
+                  onMarkPersonBillSettled(confirmSettleBillId, confirmSettlePersonId || undefined)
+                  setConfirmSettleBillId(null)
+                  setConfirmSettlePersonId(null)
+                }}
+              >
+                Mark as Settled
+              </Button>
+            </div>
+          </div>
+        </MobileBottomSheet>
+      )}
+    </>
+  )
+
   if (activeGroup) {
     const calculatedBalances = groupDetailTab === "balances" 
       ? calculateGroupBalances(activeGroup.members, allGroupBills, activeGroup.settlements || [])
@@ -879,6 +991,7 @@ export function GroupsView({
             </CardContent>
           </Card>
         )}
+        {renderModals()}
       </div>
     )
   }
@@ -1448,113 +1561,7 @@ export function GroupsView({
         </div>
       </PremiumModal>
 
-      {/* Settle Up Modal */}
-      {settleData && (
-        <MobileBottomSheet
-          isOpen={settleModalOpen}
-          onClose={() => setSettleModalOpen(false)}
-          title="Settle Up"
-        >
-          <div className="space-y-4 pt-2">
-            <div className="flex flex-col gap-2 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
-              <div className="flex items-center justify-between w-full">
-                <span className="text-sm font-bold text-rose-600 dark:text-rose-400">
-                  {groups.find(g => g.id === activeDetailGroupId)?.members.find(m => m.id === settleData.from)?.name}
-                </span>
-                <span className="text-xs text-muted-foreground font-medium px-2">pays</span>
-                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                  {groups.find(g => g.id === activeDetailGroupId)?.members.find(m => m.id === settleData.to)?.name}
-                </span>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Amount (₹)</label>
-              <div className="relative">
-                <IndianRupee className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={settleAmountInput}
-                  onChange={(e) => setSettleAmountInput(e.target.value)}
-                  className="pl-11 h-12 text-lg font-bold border-border/80 focus:border-primary/80 focus:ring-primary/20 rounded-xl"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <Button
-                variant="outline"
-                className="flex-1 h-12 rounded-xl text-base"
-                onClick={() => setSettleModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="flex-1 h-12 rounded-xl text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                onClick={() => {
-                  const amt = parseFloat(settleAmountInput)
-                  if (!isNaN(amt) && amt > 0 && activeDetailGroupId) {
-                    onAddSettlement(activeDetailGroupId, {
-                      fromUserId: settleData.from,
-                      toUserId: settleData.to,
-                      amount: amt,
-                      groupId: activeDetailGroupId
-                    })
-                    setSettleModalOpen(false)
-                  }
-                }}
-                disabled={parseFloat(settleAmountInput) <= 0 || isNaN(parseFloat(settleAmountInput))}
-              >
-                Record Payment
-              </Button>
-            </div>
-          </div>
-        </MobileBottomSheet>
-      )}
-
-      {/* Confirm Bill Settlement Modal */}
-      {confirmSettleBillId && (
-        <MobileBottomSheet
-          isOpen={!!confirmSettleBillId}
-          onClose={() => setConfirmSettleBillId(null)}
-          title="Mark as Settled?"
-        >
-          <div className="space-y-4 pt-2">
-            <div className="text-center p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">
-                {confirmSettlePersonId 
-                  ? "Are you sure you want to mark this person's share as paid?" 
-                  : "Are you sure you want to mark this entire bill as settled?"}
-              </p>
-              <p className="text-xs text-amber-700/80 dark:text-amber-500/80 mt-2">
-                This will record a settlement and balance the group's debts. This action cannot be changed later.
-              </p>
-            </div>
-            <div className="flex gap-3 pt-4">
-              <Button
-                variant="outline"
-                className="flex-1 h-12 rounded-xl text-base"
-                onClick={() => { setConfirmSettleBillId(null); setConfirmSettlePersonId(null) }}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="flex-1 h-12 rounded-xl text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                onClick={() => {
-                  onMarkPersonBillSettled(confirmSettleBillId, confirmSettlePersonId || undefined)
-                  setConfirmSettleBillId(null)
-                  setConfirmSettlePersonId(null)
-                }}
-              >
-                Mark as Settled
-              </Button>
-            </div>
-          </div>
-        </MobileBottomSheet>
-      )}
+      {renderModals()}
     </div>
   )
 }
