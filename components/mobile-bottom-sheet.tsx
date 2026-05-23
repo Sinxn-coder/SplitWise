@@ -43,31 +43,31 @@ export function MobileBottomSheet({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
         onClick={onClose}
       />
 
-      {/* Sheet */}
+      {/* Sheet / Modal */}
       <div
         ref={sheetRef}
-        className="absolute bottom-0 left-0 right-0 bg-background rounded-t-2xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[85vh] flex flex-col"
+        className="relative w-full sm:w-[28rem] bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[85vh] flex flex-col sm:m-4"
       >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-2">
+        {/* Handle (mobile only) */}
+        <div className="flex justify-center pt-3 pb-2 sm:hidden">
           <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 pb-3 border-b border-border">
+        <div className="flex items-center justify-between px-4 pb-3 sm:pt-4 border-b border-border">
           <h3 className="text-lg font-semibold">{title}</h3>
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-8 w-8"
+            className="h-8 w-8 shrink-0"
           >
             <X className="h-4 w-4" />
           </Button>
