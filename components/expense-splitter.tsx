@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Receipt, Plus, Users, History, Download, DollarSign, Smartphone, X, User, WifiOff, Wifi } from "lucide-react"
 import { StepIndicator } from "@/components/step-indicator"
 import { AddFriendsStep } from "@/components/steps/add-friends-step"
@@ -26,6 +26,9 @@ export function ExpenseSplitter({
   onProfileUpdate: (session: { id: string; username: string; full_name: string }) => void
 }) {
   const [activeTab, setActiveTab] = useState<"groups" | "splitter" | "history" | "profile">("groups")
+  const navSwipeRef = useRef({ startX: 0, active: false })
+  const bgRef = useRef<HTMLDivElement>(null)
+  const navTabs = ["groups", "splitter", "history", "profile"] as const
   const [currentStep, setCurrentStep] = useState(1)
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [showPwaPopup, setShowPwaPopup] = useState(false)
@@ -252,8 +255,8 @@ export function ExpenseSplitter({
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-6">
-      {/* Header */}
+    <div className="min-h-screen bg-background pb-[90px] md:pb-6">
+      {/* Top Header / App Bar */}
       <header className="sticky top-0 z-50 backdrop-blur-lg bg-background/80 border-b border-border/50">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -548,53 +551,106 @@ export function ExpenseSplitter({
       </div>
 
       {/* Mobile Floating Bottom Tab Navigation (Fixed bottom) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-lg border-t border-slate-200/90 dark:border-slate-800/90 flex items-center justify-around pt-3 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-[0_-4px_24px_rgba(0,0,0,0.04)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.4)] px-3 select-none transition-colors duration-300">
+      <div 
+        className="md:hidden ios-nav-container touch-pan-y"
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          navSwipeRef.current = { startX: e.clientX, active: true };
+          if (bgRef.current) {
+            bgRef.current.style.transition = 'none';
+          }
+        }}
+        onPointerMove={(e) => {
+          if (!navSwipeRef.current.active) return;
+          const deltaX = e.clientX - navSwipeRef.current.startX;
+          
+          const currentIndex = navTabs.indexOf(activeTab);
+          const tabWidth = typeof window !== 'undefined' ? (window.innerWidth - 40) / 4 : 90;
+          const maxDrag = tabWidth / 2;
+          
+          let clampedDelta = deltaX;
+          
+          // Limit drag out of bounds to exactly half of the pill width
+          if (currentIndex === 0 && deltaX < 0) {
+            clampedDelta = Math.max(deltaX, -maxDrag);
+          } else if (currentIndex === navTabs.length - 1 && deltaX > 0) {
+            clampedDelta = Math.min(deltaX, maxDrag);
+          }
+          
+          if (bgRef.current) {
+            bgRef.current.style.transform = `translateX(calc(${currentIndex * 100}% + ${clampedDelta}px))`;
+          }
+        }}
+        onPointerUp={(e) => {
+          if (!navSwipeRef.current.active) return;
+          navSwipeRef.current.active = false;
+          e.currentTarget.releasePointerCapture(e.pointerId);
+          
+          if (bgRef.current) {
+            bgRef.current.style.transition = '';
+            bgRef.current.style.transform = ''; // Hand control back to React
+          }
+          
+          const deltaX = e.clientX - navSwipeRef.current.startX;
+          const tabWidth = typeof window !== 'undefined' ? (window.innerWidth - 40) / 4 : 90;
+          
+          const currentIndex = navTabs.indexOf(activeTab);
+          const shift = Math.round(deltaX / tabWidth);
+          let nextIndex = currentIndex + shift;
+          
+          if (nextIndex < 0) nextIndex = 0;
+          if (nextIndex > 3) nextIndex = 3;
+          
+          if (nextIndex !== currentIndex) {
+            setActiveTab(navTabs[nextIndex]);
+          }
+        }}
+        onPointerCancel={(e) => {
+          navSwipeRef.current.active = false;
+          e.currentTarget.releasePointerCapture(e.pointerId);
+          if (bgRef.current) {
+            bgRef.current.style.transition = '';
+            bgRef.current.style.transform = '';
+          }
+        }}
+      >
+        {/* Sliding Active Background ("Water Drop" effect) */}
+        <div 
+          ref={bgRef}
+          className="ios-nav-active-bg" 
+          style={{ transform: `translateX(${navTabs.indexOf(activeTab) * 100}%)` }} 
+        />
+        
         <button
           onClick={() => setActiveTab("groups")}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
-            activeTab === "groups" ? "text-emerald-600 dark:text-emerald-400 scale-105" : "text-muted-foreground"
-          }`}
+          className={`ios-nav-item ${activeTab === "groups" ? "active" : ""}`}
         >
-          <div className={`p-1.5 rounded-lg transition-colors duration-200 ${activeTab === "groups" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : ""}`}>
-            <Users className="h-5 w-5" />
-          </div>
-          <span>Groups</span>
+          <Users className="ios-nav-icon" />
+          <span className="ios-nav-label">Groups</span>
         </button>
 
         <button
           onClick={() => setActiveTab("splitter")}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
-            activeTab === "splitter" ? "text-emerald-600 dark:text-emerald-400 scale-105" : "text-muted-foreground"
-          }`}
+          className={`ios-nav-item ${activeTab === "splitter" ? "active" : ""}`}
         >
-          <div className={`p-1.5 rounded-lg transition-colors duration-200 ${activeTab === "splitter" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : ""}`}>
-            <Receipt className="h-5 w-5" />
-          </div>
-          <span>Split Bill</span>
+          <Receipt className="ios-nav-icon" />
+          <span className="ios-nav-label">Split Bill</span>
         </button>
 
         <button
           onClick={() => setActiveTab("history")}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
-            activeTab === "history" ? "text-emerald-600 dark:text-emerald-400 scale-105" : "text-muted-foreground"
-          }`}
+          className={`ios-nav-item ${activeTab === "history" ? "active" : ""}`}
         >
-          <div className={`p-1.5 rounded-lg transition-colors duration-200 ${activeTab === "history" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : ""}`}>
-            <History className="h-5 w-5" />
-          </div>
-          <span>History</span>
+          <History className="ios-nav-icon" />
+          <span className="ios-nav-label">History</span>
         </button>
 
         <button
           onClick={() => setActiveTab("profile")}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-all duration-200 flex-1 cursor-pointer select-none active:scale-95 ${
-            activeTab === "profile" ? "text-emerald-600 dark:text-emerald-400 scale-105" : "text-muted-foreground"
-          }`}
+          className={`ios-nav-item ${activeTab === "profile" ? "active" : ""}`}
         >
-          <div className={`p-1.5 rounded-lg transition-colors duration-200 ${activeTab === "profile" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : ""}`}>
-            <User className="h-5 w-5" />
-          </div>
-          <span>Profile</span>
+          <User className="ios-nav-icon" />
+          <span className="ios-nav-label">Profile</span>
         </button>
       </div>
 

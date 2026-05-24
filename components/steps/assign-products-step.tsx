@@ -124,7 +124,7 @@ export function AssignProductsStep({
                   disabled={product.assignedTo.length === 0}
                 >
                   <Sliders className="h-3.5 w-3.5 mr-1" />
-                  Custom Count
+                  {product.quantity === 1 ? "Custom Split" : "Custom Count"}
                 </Button>
                 <Button
                   variant="outline"
@@ -165,11 +165,14 @@ export function AssignProductsStep({
               <div className="pt-3 border-t border-border/50 space-y-2">
                 <div className="flex flex-col gap-2 p-3 rounded-xl border mb-3 bg-card">
                   <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-                    <span>Custom Count Split Details</span>
+                    <span>{product.quantity === 1 ? "Percentage Split Details" : "Custom Count Split Details"}</span>
                     <span className="flex items-center gap-1.5">
                       Assigned: 
                       <span className="text-foreground font-bold bg-muted px-2 py-0.5 rounded">
-                        {getTotalShares(product).toFixed(1)} / {product.quantity}
+                        {product.quantity === 1 
+                          ? `${(getTotalShares(product) * 100).toFixed(0)}% / 100%`
+                          : `${getTotalShares(product).toFixed(1)} / ${product.quantity}`
+                        }
                       </span>
                     </span>
                   </div>
@@ -183,21 +186,21 @@ export function AssignProductsStep({
                       return (
                         <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-lg">
                           <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                          Perfect split! All {product.quantity} items are fully assigned.
+                          {product.quantity === 1 ? "Perfect split! 100% assigned." : `Perfect split! All ${product.quantity} items are fully assigned.`}
                         </div>
                       )
                     } else if (diff > 0) {
                       return (
                         <div className="flex items-center gap-2 text-xs text-amber-600 font-semibold bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-lg">
                           <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                          Under-assigned: {diff.toFixed(1)} items remaining to assign.
+                          {product.quantity === 1 ? `Under-assigned: ${(diff * 100).toFixed(0)}% remaining.` : `Under-assigned: ${diff.toFixed(1)} items remaining to assign.`}
                         </div>
                       )
                     } else {
                       return (
                         <div className="flex items-center gap-2 text-xs text-destructive font-semibold bg-destructive/10 border border-destructive/20 px-3 py-2 rounded-lg">
                           <span className="flex h-2 w-2 rounded-full bg-destructive animate-pulse" />
-                          Over-assigned: Assigned count exceeds total quantity by {Math.abs(diff).toFixed(1)} items!
+                          {product.quantity === 1 ? `Over-assigned: Exceeds 100% by ${(Math.abs(diff) * 100).toFixed(0)}%!` : `Over-assigned: Assigned count exceeds total quantity by ${Math.abs(diff).toFixed(1)} items!`}
                         </div>
                       )
                     }
@@ -218,24 +221,47 @@ export function AssignProductsStep({
                   return (
                     <div key={personId} className="flex items-center gap-3">
                       <span className="text-sm font-medium w-24 truncate">{person?.name}</span>
-                      <div className="flex-1 max-w-[120px]">
-                        <select
-                          value={currentCount}
-                          onChange={(e) =>
-                            updateProductPercentage(
-                              product.id,
-                              personId,
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus:border-primary"
-                        >
-                          {dropdownOptions.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt} {opt === 1 ? "item" : "items"}
-                            </option>
-                          ))}
-                        </select>
+                      <div className="flex-1 max-w-[120px] flex items-center gap-2">
+                        {product.quantity === 1 ? (
+                          <>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value={currentCount * 100}
+                              onChange={(e) =>
+                                updateProductPercentage(
+                                  product.id,
+                                  personId,
+                                  parseFloat(e.target.value) / 100
+                                )
+                              }
+                              className="flex-1 w-full accent-primary cursor-pointer"
+                            />
+                            <span className="text-xs font-medium w-9 text-right shrink-0">
+                              {(currentCount * 100).toFixed(0)}%
+                            </span>
+                          </>
+                        ) : (
+                          <select
+                            value={currentCount}
+                            onChange={(e) =>
+                              updateProductPercentage(
+                                product.id,
+                                personId,
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus:border-primary cursor-pointer"
+                          >
+                            {dropdownOptions.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt} {opt === 1 ? "item" : "items"}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                       <span className="text-sm font-medium text-muted-foreground flex items-center ml-auto">
                         <IndianRupee className="h-3 w-3 mr-0.5" />

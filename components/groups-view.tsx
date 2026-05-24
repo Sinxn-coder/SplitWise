@@ -85,6 +85,10 @@ export function GroupsView({
   const [billFilter, setBillFilter] = useState<"all" | "uncleared" | "cleared">("uncleared")
   const [expandedBillId, setExpandedBillId] = useState<string | null>(null)
 
+  // Swipe logic for bill filter
+  const filterSwipeRef = useRef({ startX: 0, active: false });
+  const filterOptions = ["all", "uncleared", "cleared"] as const;
+
   // Three-dot dropdown menu state
   const [openMenuGroupId, setOpenMenuGroupId] = useState<string | null>(null)
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null)
@@ -661,24 +665,61 @@ export function GroupsView({
                   New Bill
                 </Button>
               </div>
-              <div className="flex items-center justify-between mt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-2 sm:mt-1 gap-2">
                 <p className="text-xs text-muted-foreground">All bills created in this group</p>
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg overflow-hidden">
+                <div 
+                  className="relative flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg w-full sm:w-[240px] shrink-0 touch-pan-y select-none"
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    filterSwipeRef.current = { startX: e.clientX, active: true };
+                  }}
+                  onPointerMove={(e) => {
+                    if (!filterSwipeRef.current.active) return;
+                    const deltaX = e.clientX - filterSwipeRef.current.startX;
+                    if (Math.abs(deltaX) > 30) {
+                      const currentIndex = filterOptions.indexOf(billFilter);
+                      let nextIndex = currentIndex;
+                      if (deltaX > 0 && currentIndex > 0) nextIndex = currentIndex - 1; // Swiping right goes to previous
+                      else if (deltaX < 0 && currentIndex < 2) nextIndex = currentIndex + 1; // Swiping left goes to next
+                      
+                      if (nextIndex !== currentIndex) {
+                        setBillFilter(filterOptions[nextIndex]);
+                        filterSwipeRef.current.startX = e.clientX;
+                      }
+                    }
+                  }}
+                  onPointerUp={(e) => {
+                    filterSwipeRef.current.active = false;
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                  }}
+                  onPointerCancel={(e) => {
+                    filterSwipeRef.current.active = false;
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                  }}
+                >
+                  {/* Sliding highlight */}
+                  <div
+                    className={`absolute top-0.5 bottom-0.5 w-[calc(33.333%-2px)] bg-white dark:bg-slate-700 rounded-md shadow-sm transition-all duration-300 ease-out z-0 ${
+                      billFilter === "all" ? "left-0.5" : 
+                      billFilter === "uncleared" ? "left-[calc(33.333%+1px)]" : 
+                      "left-[calc(66.666%+1.5px)]"
+                    }`}
+                  />
                   <button 
                     onClick={() => setBillFilter("all")}
-                    className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${billFilter === "all" ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                    className={`relative z-10 flex-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-colors ${billFilter === "all" ? "text-slate-800 dark:text-slate-200" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
                   >
                     All
                   </button>
                   <button 
                     onClick={() => setBillFilter("uncleared")}
-                    className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${billFilter === "uncleared" ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                    className={`relative z-10 flex-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-colors ${billFilter === "uncleared" ? "text-slate-800 dark:text-slate-200" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
                   >
                     Uncleared
                   </button>
                   <button 
                     onClick={() => setBillFilter("cleared")}
-                    className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${billFilter === "cleared" ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                    className={`relative z-10 flex-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-colors ${billFilter === "cleared" ? "text-slate-800 dark:text-slate-200" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
                   >
                     Cleared
                   </button>
